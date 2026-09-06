@@ -112,8 +112,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       _saveInt('best_score', best);
     }
     if (haptics) {
-      unawaited(model.lastWasGoal
-          ? HapticFeedback.lightImpact()
+      unawaited(model.lastWasCorner
+          ? HapticFeedback.heavyImpact()
           : HapticFeedback.mediumImpact());
     }
     _refresh();
@@ -124,7 +124,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       return;
     }
     if (haptics) {
-      unawaited(HapticFeedback.selectionClick());
+      unawaited(HapticFeedback.mediumImpact());
     }
     game.shoot();
   }
@@ -246,6 +246,15 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                         child: GameWidget(game: game),
                       ),
                     ),
+                    if (!ready &&
+                        !finished &&
+                        !game.matchPaused &&
+                        (model.lastChance || model.onFire))
+                      IgnorePointer(
+                          child: ColoredBox(
+                              color: model.lastChance
+                                  ? const Color(0x18ff777a)
+                                  : const Color(0x14d9ff6a))),
                     if (model.phase == MatchPhase.result && !game.matchPaused)
                       IgnorePointer(
                           child: Center(
@@ -262,7 +271,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                   color: model.lastWasGoal
                                       ? lime
                                       : const Color(0xffff777a),
-                                  fontSize: 28,
+                                  fontSize: model.lastWasCorner ? 34 : 28,
                                   fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
                           Text(model.resultSubtitle,
@@ -320,10 +329,16 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                     Text(
                         storageAvailable
                             ? (model.phase == MatchPhase.flying
-                                ? 'SHOT AWAY…'
+                                ? (model.lastChance
+                                    ? 'LAST CHANCE…'
+                                    : 'SHOT AWAY…')
                                 : model.showTapCue
                                     ? 'TAP THE GLOW. LOCK THE ARROW.'
-                                    : 'TIME THE ARROW. TAP THE PITCH.')
+                                    : model.lastChance
+                                        ? 'LAST CHANCE. MAKE IT COUNT.'
+                                        : model.onFire
+                                            ? 'ON FIRE. GO FOR THE CORNER.'
+                                            : 'TIME THE ARROW. TAP THE PITCH.')
                             : 'BEST SCORE SAVING UNAVAILABLE',
                         style: const TextStyle(
                             fontSize: 10,

@@ -138,6 +138,54 @@ void main() {
     expect(match.resultSubtitle, '+2 POINTS · SECOND MARKER');
   });
 
+  test('a near-post miss is off the post, a far miss is just wide', () {
+    final post = MatchModel()..start();
+    post.phase = MatchPhase.flying;
+    post.shotTargetX = 68;
+    for (var i = 0; i < 40; i++) {
+      post.update(1 / 60);
+    }
+    expect(post.message, 'OFF THE POST!');
+    expect(post.lastWasPost, isTrue);
+    expect(post.score, 0);
+
+    final wide = MatchModel()..start();
+    wide.phase = MatchPhase.flying;
+    wide.shotTargetX = 30;
+    for (var i = 0; i < 40; i++) {
+      wide.update(1 / 60);
+    }
+    expect(wide.message, 'JUST WIDE!');
+    expect(wide.lastWasPost, isFalse);
+  });
+
+  test('last chance is live only on the final aim', () {
+    final match = MatchModel()..start();
+    expect(match.lastChance, isFalse);
+    match.finishShot(goal: false, text: 'MISS');
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.lives, 1);
+    expect(match.lastChance, isFalse);
+    for (var frame = 0; frame < 70; frame++) {
+      match.update(1 / 60);
+    }
+    expect(match.phase, MatchPhase.aiming);
+    expect(match.lastChance, isTrue);
+  });
+
+  test('highlight shots are detected from the locked target', () {
+    final match = MatchModel()..start();
+    match.shotTargetX = 90;
+    expect(match.shotHeadsToCornerGoal, isTrue);
+    expect(match.shotHeadsToPost, isFalse);
+    match.shotTargetX = 68;
+    expect(match.shotHeadsToCornerGoal, isFalse);
+    expect(match.shotHeadsToPost, isTrue);
+    match.shotTargetX = 200;
+    expect(match.shotHeadsToCornerGoal, isFalse);
+    expect(match.shotHeadsToPost, isFalse);
+  });
+
   test('ending a run keeps the score and restart clears it', () {
     final match = MatchModel()..start();
     match.finishShot(goal: true, text: 'GOAL');

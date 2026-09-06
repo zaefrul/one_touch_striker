@@ -13,6 +13,8 @@ class MatchModel {
   static const ballRadius = 8.0;
   static const ballStartX = 200.0;
   static const ballStartY = 548.0;
+  static const cornerWidth = 45.0;
+  static const postClip = 16.0;
 
   MatchPhase phase = MatchPhase.ready;
   int score = 0;
@@ -29,6 +31,7 @@ class MatchModel {
   String unlockNote = '';
   bool lastWasGoal = false;
   bool lastWasCorner = false;
+  bool lastWasPost = false;
   bool firstAim = true;
   int resultSerial = 0;
 
@@ -37,6 +40,14 @@ class MatchModel {
   int get multiplier => streak >= 5 ? 2 : 1;
   int get defenderCount => goals >= 9 ? 2 : (goals >= 3 ? 1 : 0);
   bool get showTapCue => firstAim && phase == MatchPhase.aiming;
+  bool get onFire => multiplier == 2;
+  bool get lastChance =>
+      lives == 1 &&
+      (phase == MatchPhase.aiming || phase == MatchPhase.flying);
+  bool get shotHeadsToCornerGoal =>
+      isOnTarget(shotTargetX) && isCornerTarget(shotTargetX);
+  bool get shotHeadsToPost =>
+      !isOnTarget(shotTargetX) && outsideGoal(shotTargetX) <= postClip;
   String get resultSubtitle {
     if (lastWasGoal) {
       final points = '+$lastPoints POINTS';
@@ -61,7 +72,7 @@ class MatchModel {
     clock = 0;
     message = '';
     unlockNote = '';
-    lastWasGoal = lastWasCorner = false;
+    lastWasGoal = lastWasCorner = lastWasPost = false;
     firstAim = true;
     resetBall();
     phase = MatchPhase.aiming;
@@ -136,19 +147,38 @@ class MatchModel {
     }
     if (ballY <= goalY) {
       ballY = goalY;
-      final inside = shotTargetX >= leftPost + ballRadius &&
-          shotTargetX <= rightPost - ballRadius;
-      if (!inside) {
-        finishShot(goal: false, text: 'JUST WIDE!');
+      if (!isOnTarget(shotTargetX)) {
+        final post = outsideGoal(shotTargetX) <= postClip;
+        finishShot(
+            goal: false,
+            post: post,
+            text: post ? 'OFF THE POST!' : 'JUST WIDE!');
       } else {
-        final corner =
-            shotTargetX <= leftPost + 45 || shotTargetX >= rightPost - 45;
+        final corner = isCornerTarget(shotTargetX);
         finishShot(
             goal: true,
             corner: corner,
             text: corner ? 'TOP CORNER!' : 'GOOOAL!');
       }
     }
+  }
+
+  static bool isOnTarget(double x) =>
+      x >= leftPost + ballRadius && x <= rightPost - ballRadius;
+
+  static bool isCornerTarget(double x) =>
+      x <= leftPost + cornerWidth || x >= rightPost - cornerWidth;
+
+  static double outsideGoal(double x) {
+    final leftEdge = leftPost + ballRadius;
+    final rightEdge = rightPost - ballRadius;
+    if (x < leftEdge) {
+      return leftEdge - x;
+    }
+    if (x > rightEdge) {
+      return x - rightEdge;
+    }
+    return 0;
   }
 
   bool hitsBox(double x, double y, double halfW, double halfH) {
@@ -160,9 +190,13 @@ class MatchModel {
   }
 
   void finishShot(
-      {required bool goal, bool corner = false, required String text}) {
+      {required bool goal,
+      bool corner = false,
+      bool post = false,
+      required String text}) {
     lastWasGoal = goal;
     lastWasCorner = corner;
+    lastWasPost = post;
     lastPoints = 0;
     unlockNote = '';
     if (goal) {
@@ -185,7 +219,7 @@ class MatchModel {
     }
     message = text;
     resultSerial++;
-    resultTime = goal ? .85 : 1.0;
+    resultTime = goal ? (corner ? 1.25 : .85) : (post ? 1.15 : 1.0);
     phase = MatchPhase.result;
   }
 }

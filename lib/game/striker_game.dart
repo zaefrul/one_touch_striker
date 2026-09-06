@@ -15,17 +15,23 @@ class StrikerGame extends FlameGame {
   MatchPhase _previous = MatchPhase.ready;
   final List<Offset> _trail = [];
   double _trailTime = 0;
+  double _kickTime = 0;
   Picture? _fieldPicture;
   final Map<(String, double, Color, double), TextPainter> _labelCache = {};
   final List<Paint> _trailPaints = List.generate(
-    9,
-    (i) => Paint()..color = Color.fromRGBO(233, 255, 177, .05 + i * .055),
+    14,
+    (i) => Paint()..color = Color.fromRGBO(233, 255, 177, .06 + i * .05),
+  );
+  final List<Paint> _fireTrailPaints = List.generate(
+    14,
+    (i) => Paint()..color = Color.fromRGBO(217, 255, 106, .08 + i * .055),
   );
   final List<Paint> _confettiPaints = [
     Paint()..color = const Color(0xffd9ff6a),
     Paint()..color = const Color(0xffffc857),
     Paint()..color = const Color(0xffefffe2),
   ];
+  final Paint _postSparkPaint = Paint()..color = const Color(0xfffff4c2);
 
   @override
   Future<void> onLoad() async {
@@ -35,6 +41,8 @@ class StrikerGame extends FlameGame {
       _painterFor(number, 11, const Color(0xff123c33), 0);
     }
     _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
+    _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
+    _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
     _prepareField();
   }
 
@@ -69,12 +77,14 @@ class StrikerGame extends FlameGame {
   void startMatch() {
     model.start();
     matchPaused = false;
+    _kickTime = 0;
     _trail.clear();
     onChanged();
   }
 
   void shoot() {
     if (!matchPaused && model.shoot()) {
+      _kickTime = .14;
       _trail.clear();
       onChanged();
     }
@@ -87,8 +97,28 @@ class StrikerGame extends FlameGame {
     }
     model.endRun();
     matchPaused = false;
+    _kickTime = 0;
     _trail.clear();
     onChanged();
+  }
+
+  double _dramaScale() {
+    if (model.phase != MatchPhase.flying) {
+      return 1;
+    }
+    if (model.ballY > MatchModel.goalY + 115) {
+      return 1;
+    }
+    if (model.shotHeadsToCornerGoal || model.shotHeadsToPost) {
+      return .38;
+    }
+    return 1;
+  }
+
+  double get _flightT {
+    return ((MatchModel.ballStartY - model.ballY) /
+            (MatchModel.ballStartY - MatchModel.goalY))
+        .clamp(0.0, 1.0);
   }
 
   @override
@@ -97,13 +127,16 @@ class StrikerGame extends FlameGame {
     if (matchPaused) {
       return;
     }
-    model.update(dt);
+    if (_kickTime > 0) {
+      _kickTime = math.max(0, _kickTime - dt);
+    }
+    model.update(dt * _dramaScale());
     if (model.phase == MatchPhase.flying) {
       _trailTime += dt;
-      if (_trailTime >= .016) {
+      if (_trailTime >= .012) {
         _trailTime = 0;
         _trail.add(Offset(model.ballX, model.ballY));
-        if (_trail.length > 9) {
+        if (_trail.length > 14) {
           _trail.removeAt(0);
         }
       }
@@ -132,23 +165,72 @@ class StrikerGame extends FlameGame {
     canvas.scale(scale);
     _prepareField();
     canvas.drawPicture(_fieldPicture!);
+    _stakes(canvas);
+    final flight = _flightT;
     for (var i = 0; i < model.defenderCount; i++) {
-      _player(canvas, model.defenderX(i), model.defenderY(i),
+      final lean = model.phase == MatchPhase.flying
+          ? (model.ballX - model.defenderX(i)) * .08 * flight
+          : 0.0;
+      _player(canvas, model.defenderX(i) + lean, model.defenderY(i),
           const Color(0xffff686b), '${4 + i}');
     }
-    _player(canvas, model.keeperX, model.keeperY, const Color(0xffffc857), '1',
+    final keeper = _keeperDraw();
+    _player(canvas, keeper.dx, keeper.dy, const Color(0xffffc857), '1',
         keeper: true);
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
       _aim(canvas);
     }
+    final trailPaints = model.onFire ? _fireTrailPaints : _trailPaints;
     for (var i = 0; i < _trail.length; i++) {
-      canvas.drawCircle(_trail[i], 2 + i * .65, _trailPaints[i]);
+      canvas.drawCircle(_trail[i], 2.2 + i * .7, trailPaints[i]);
     }
     _ball(canvas);
     if (model.phase == MatchPhase.result && model.lastWasGoal) {
       _celebrate(canvas);
+    } else if (model.phase == MatchPhase.result && model.lastWasPost) {
+      _postSpark(canvas);
     }
     canvas.restore();
+  }
+
+  Offset _keeperDraw() {
+    var x = model.keeperX;
+    var y = model.keeperY;
+    if (model.phase == MatchPhase.flying ||
+        (model.phase == MatchPhase.result && !model.lastWasGoal)) {
+      final t = _flightT;
+      x += (model.shotTargetX - model.keeperX) * .5 * t;
+      y += 8 * t;
+    }
+    return Offset(x, y);
+  }
+
+  void _stakes(Canvas c) {
+    final live = model.phase == MatchPhase.aiming ||
+        model.phase == MatchPhase.flying;
+    if (!live) {
+      return;
+    }
+    if (model.onFire) {
+      final pulse = .16 + .1 * math.sin(model.clock * 6);
+      c.drawRRect(
+          RRect.fromRectAndRadius(
+              const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24)),
+          Paint()
+            ..color = Color.fromRGBO(217, 255, 106, pulse)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4);
+      _label(c, 'ON FIRE', 200, 16, 13, const Color(0xffd9ff6a), spacing: 3);
+    } else if (model.lastChance) {
+      c.drawRRect(
+          RRect.fromRectAndRadius(
+              const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24)),
+          Paint()
+            ..color = const Color(0x55ff777a)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3);
+      _label(c, 'LAST CHANCE', 200, 16, 12, const Color(0xffff777a), spacing: 2);
+    }
   }
 
   void _pitch(Canvas c) {
@@ -291,14 +373,25 @@ class StrikerGame extends FlameGame {
 
   void _ball(Canvas c) {
     final p = Offset(model.ballX, model.ballY);
+    var squashX = 1.0;
+    var squashY = 1.0;
+    if (_kickTime > 0) {
+      final u = (_kickTime / .14).clamp(0.0, 1.0);
+      squashX = 1 + .45 * u;
+      squashY = 1 - .35 * u;
+    }
+    c.save();
+    c.translate(p.dx, p.dy);
+    c.scale(squashX, squashY);
+    c.translate(-p.dx, -p.dy);
     c.drawOval(
         Rect.fromCenter(center: p + const Offset(2, 7), width: 20, height: 9),
         Paint()..color = const Color(0x55000000));
     c.drawCircle(p, 8, Paint()..color = const Color(0xfff8faed));
+    final spin = model.phase == MatchPhase.flying ? 16.0 : 0.0;
     final patch = Path();
     for (var i = 0; i < 5; i++) {
-      final a = i * math.pi * 2 / 5 +
-          model.clock * (model.phase == MatchPhase.flying ? 12 : 0);
+      final a = i * math.pi * 2 / 5 + model.clock * spin;
       final x = p.dx + math.cos(a) * 3.5;
       final y = p.dy + math.sin(a) * 3.5;
       if (i == 0) {
@@ -308,16 +401,39 @@ class StrikerGame extends FlameGame {
       }
     }
     c.drawPath(patch..close(), Paint()..color = const Color(0xff233e37));
+    c.restore();
   }
 
   void _celebrate(Canvas c) {
-    final t = .85 - model.resultTime;
-    for (var i = 0; i < 24; i++) {
+    final duration = model.lastWasCorner ? 1.25 : .85;
+    final t = (duration - model.resultTime).clamp(0.0, duration);
+    if (model.lastWasCorner && t < .2) {
+      c.drawRect(
+          const Rect.fromLTWH(60, 51, 280, 55),
+          Paint()
+            ..color = Color.fromRGBO(255, 255, 255, .35 * (1 - t / .2)));
+    }
+    final count = model.lastWasCorner ? 40 : 24;
+    final spread = model.lastWasCorner ? 1.35 : 1.0;
+    for (var i = 0; i < count; i++) {
       final angle = i * 2.399;
-      final r = t * (75 + (i % 5) * 20);
+      final r = t * (75 + (i % 5) * 20) * spread;
       final p = Offset(model.ballX + math.cos(angle) * r,
           98 + math.sin(angle) * r + t * t * 80);
-      c.drawCircle(p, 2.5, _confettiPaints[i % 3]);
+      c.drawCircle(p, model.lastWasCorner ? 3.2 : 2.5, _confettiPaints[i % 3]);
+    }
+  }
+
+  void _postSpark(Canvas c) {
+    final t = (1.15 - model.resultTime).clamp(0.0, 1.15);
+    final x = model.shotTargetX < 200
+        ? MatchModel.leftPost
+        : MatchModel.rightPost;
+    for (var i = 0; i < 12; i++) {
+      final angle = i * 0.7 + t * 4;
+      final r = 8 + t * (18 + (i % 4) * 6);
+      c.drawCircle(Offset(x + math.cos(angle) * r, 100 + math.sin(angle) * r * .45),
+          2.2, _postSparkPaint);
     }
   }
 
@@ -328,7 +444,8 @@ class StrikerGame extends FlameGame {
     painter.paint(c, Offset(x - painter.width / 2, y));
   }
 
-  TextPainter _painterFor(String text, double fontSize, Color color, double spacing) {
+  TextPainter _painterFor(
+      String text, double fontSize, Color color, double spacing) {
     return _labelCache.putIfAbsent((text, fontSize, color, spacing), () {
       return TextPainter(
         text: TextSpan(
