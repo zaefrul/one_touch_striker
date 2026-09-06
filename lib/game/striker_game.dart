@@ -15,6 +15,52 @@ class StrikerGame extends FlameGame {
   MatchPhase _previous = MatchPhase.ready;
   final List<Offset> _trail = [];
   double _trailTime = 0;
+  Picture? _fieldPicture;
+  final Map<(String, double, Color, double), TextPainter> _labelCache = {};
+  final List<Paint> _trailPaints = List.generate(
+    9,
+    (i) => Paint()..color = Color.fromRGBO(233, 255, 177, .05 + i * .055),
+  );
+  final List<Paint> _confettiPaints = [
+    Paint()..color = const Color(0xffd9ff6a),
+    Paint()..color = const Color(0xffffc857),
+    Paint()..color = const Color(0xffefffe2),
+  ];
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    // Lay out the finite set of labels before the first playable frame.
+    for (final number in ['1', '4', '5']) {
+      _painterFor(number, 11, const Color(0xff123c33), 0);
+    }
+    _prepareField();
+  }
+
+  void _prepareField() {
+    if (_fieldPicture != null) {
+      return;
+    }
+    // Keep logical vector commands so resizing does not blur the pitch.
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    _pitch(canvas);
+    _goal(canvas);
+    _label(canvas, 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
+        const Color(0xff75b3a1), spacing: 2);
+    _fieldPicture = recorder.endRecording();
+  }
+
+  @override
+  void onRemove() {
+    _fieldPicture?.dispose();
+    _fieldPicture = null;
+    for (final painter in _labelCache.values) {
+      painter.dispose();
+    }
+    _labelCache.clear();
+    super.onRemove();
+  }
 
   @override
   Color backgroundColor() => const Color(0xff073c34);
@@ -72,8 +118,8 @@ class StrikerGame extends FlameGame {
     canvas.save();
     canvas.translate((size.x - 400 * scale) / 2, (size.y - 640 * scale) / 2);
     canvas.scale(scale);
-    _pitch(canvas);
-    _goal(canvas);
+    _prepareField();
+    canvas.drawPicture(_fieldPicture!);
     for (var i = 0; i < model.defenderCount; i++) {
       _player(canvas, model.defenderX(i), model.defenderY(i),
           const Color(0xffff686b), '${4 + i}');
@@ -84,16 +130,12 @@ class StrikerGame extends FlameGame {
       _aim(canvas);
     }
     for (var i = 0; i < _trail.length; i++) {
-      canvas.drawCircle(_trail[i], 2 + i * .65,
-          Paint()..color = Color.fromRGBO(233, 255, 177, .05 + i * .055));
+      canvas.drawCircle(_trail[i], 2 + i * .65, _trailPaints[i]);
     }
     _ball(canvas);
     if (model.phase == MatchPhase.result && model.lastWasGoal) {
       _celebrate(canvas);
     }
-    _label(canvas, 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
-        const Color(0xff75b3a1),
-        spacing: 2);
     canvas.restore();
   }
 
@@ -260,31 +302,31 @@ class StrikerGame extends FlameGame {
       final r = t * (75 + (i % 5) * 20);
       final p = Offset(model.ballX + math.cos(angle) * r,
           98 + math.sin(angle) * r + t * t * 80);
-      c.drawCircle(
-          p,
-          2.5,
-          Paint()
-            ..color = [
-              const Color(0xffd9ff6a),
-              const Color(0xffffc857),
-              const Color(0xffefffe2)
-            ][i % 3]);
+      c.drawCircle(p, 2.5, _confettiPaints[i % 3]);
     }
   }
 
   void _label(
       Canvas c, String text, double x, double y, double fontSize, Color color,
       {double spacing = 0}) {
-    final painter = TextPainter(
-        text: TextSpan(
-            text: text,
-            style: TextStyle(
-                fontSize: fontSize,
-                fontWeight: FontWeight.w800,
-                color: color,
-                letterSpacing: spacing)),
-        textDirection: TextDirection.ltr)
-      ..layout();
+    final painter = _painterFor(text, fontSize, color, spacing);
     painter.paint(c, Offset(x - painter.width / 2, y));
+  }
+
+  TextPainter _painterFor(String text, double fontSize, Color color, double spacing) {
+    return _labelCache.putIfAbsent((text, fontSize, color, spacing), () {
+      return TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            color: color,
+            letterSpacing: spacing,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
   }
 }
