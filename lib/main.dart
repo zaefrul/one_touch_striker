@@ -85,9 +85,15 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _saveInt(String key, int value) {
-    _writes = _writes
-        .then((_) => prefs.setInt(key, value))
-        .catchError((Object error) {
+    _enqueueWrite(() => prefs.setInt(key, value));
+  }
+
+  void _saveBool(String key, bool value) {
+    _enqueueWrite(() => prefs.setBool(key, value));
+  }
+
+  void _enqueueWrite(Future<void> Function() write) {
+    _writes = _writes.then((_) => write()).catchError((_) {
       if (mounted) {
         setState(() => storageAvailable = false);
       }
@@ -140,6 +146,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    game.pauseEngine();
     super.dispose();
   }
 
@@ -175,13 +182,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                     IconButton(
                       tooltip:
                           haptics ? 'Turn vibration off' : 'Turn vibration on',
-                      onPressed: () async {
+                      onPressed: () {
                         setState(() => haptics = !haptics);
-                        try {
-                          await prefs.setBool('haptics', haptics);
-                        } catch (_) {
-                          if (mounted) setState(() => storageAvailable = false);
-                        }
+                        _saveBool('haptics', haptics);
                       },
                       icon: Icon(
                           haptics ? Icons.vibration : Icons.phone_android,
@@ -232,8 +235,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                 Expanded(
                   child: Stack(fit: StackFit.expand, children: [
                     Semantics(
-                      label:
-                          'Football pitch. Tap to shoot in the arrow direction.',
+                      label: model.showTapCue
+                          ? 'Aiming. Tap the pitch to lock the arrow. The ball shoots where the arrow points, not where you touch.'
+                          : 'Football pitch. Tap to shoot in the arrow direction.',
                       button: true,
                       onTap: _shoot,
                       child: GestureDetector(
@@ -261,10 +265,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                   fontSize: 28,
                                   fontWeight: FontWeight.w900)),
                           const SizedBox(height: 4),
-                          Text(
-                              model.lastWasGoal
-                                  ? '+${model.lastPoints} POINTS'
-                                  : '${model.lives} CHANCES LEFT',
+                          Text(model.resultSubtitle,
                               style: const TextStyle(
                                   letterSpacing: 2, fontSize: 11)),
                         ]),
@@ -320,7 +321,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                         storageAvailable
                             ? (model.phase == MatchPhase.flying
                                 ? 'SHOT AWAY…'
-                                : 'TIME THE ARROW. TAP THE PITCH.')
+                                : model.showTapCue
+                                    ? 'TAP THE GLOW. LOCK THE ARROW.'
+                                    : 'TIME THE ARROW. TAP THE PITCH.')
                             : 'BEST SCORE SAVING UNAVAILABLE',
                         style: const TextStyle(
                             fontSize: 10,
@@ -423,6 +426,17 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                   style: const TextStyle(
                       fontWeight: FontWeight.w900, letterSpacing: 1.5)),
             )),
+        if (!ready && !finished)
+          Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: TextButton(
+                onPressed: game.endRun,
+                child: const Text('END RUN',
+                    style: TextStyle(
+                        color: Colors.white54,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.6)),
+              )),
         if (ready)
           const Padding(
               padding: EdgeInsets.only(top: 14),

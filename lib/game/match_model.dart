@@ -26,14 +26,27 @@ class MatchModel {
   double shotTargetX = 200;
   double resultTime = 0;
   String message = '';
+  String unlockNote = '';
   bool lastWasGoal = false;
   bool lastWasCorner = false;
+  bool firstAim = true;
   int resultSerial = 0;
 
   int get lives => 3 - misses;
   int get level => 1 + goals ~/ 3;
   int get multiplier => streak >= 5 ? 2 : 1;
   int get defenderCount => goals >= 9 ? 2 : (goals >= 3 ? 1 : 0);
+  bool get showTapCue => firstAim && phase == MatchPhase.aiming;
+  String get resultSubtitle {
+    if (lastWasGoal) {
+      final points = '+$lastPoints POINTS';
+      return unlockNote.isEmpty ? points : '$points · $unlockNote';
+    }
+    if (lives <= 0) {
+      return "THAT'S ALL";
+    }
+    return lives == 1 ? '1 CHANCE LEFT' : '$lives CHANCES LEFT';
+  }
   double get aimX =>
       200 + 172 * math.sin(clock * (1.35 + math.min(goals, 18) * .055));
   double get keeperX =>
@@ -47,9 +60,18 @@ class MatchModel {
     score = goals = misses = streak = lastPoints = 0;
     clock = 0;
     message = '';
+    unlockNote = '';
     lastWasGoal = lastWasCorner = false;
+    firstAim = true;
     resetBall();
     phase = MatchPhase.aiming;
+  }
+
+  void endRun() {
+    if (phase == MatchPhase.ready || phase == MatchPhase.finished) {
+      return;
+    }
+    phase = MatchPhase.finished;
   }
 
   void resetBall() {
@@ -62,6 +84,7 @@ class MatchModel {
       return false;
     }
     shotTargetX = aimX;
+    firstAim = false;
     phase = MatchPhase.flying;
     return true;
   }
@@ -141,12 +164,21 @@ class MatchModel {
     lastWasGoal = goal;
     lastWasCorner = corner;
     lastPoints = 0;
+    unlockNote = '';
     if (goal) {
       // The fifth goal activates the multiplier for subsequent shots.
       lastPoints = (corner ? 3 : 1) * multiplier;
       score += lastPoints;
       goals++;
       streak++;
+      if (goals == 3) {
+        unlockNote = 'MARKER ON';
+      } else if (goals == 9) {
+        unlockNote = 'SECOND MARKER';
+      }
+      if (streak == 5) {
+        unlockNote = '2× ON · NEXT SHOTS';
+      }
     } else {
       misses++;
       streak = 0;

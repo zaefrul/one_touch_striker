@@ -88,4 +88,66 @@ void main() {
     match.update(30);
     expect(match.ballY, greaterThan(460));
   });
+
+  test('first aim shows a tap cue until the shot locks', () {
+    final match = MatchModel();
+    expect(match.showTapCue, isFalse);
+    match.start();
+    expect(match.showTapCue, isTrue);
+    expect(match.shoot(), isTrue);
+    expect(match.showTapCue, isFalse);
+    match.finishShot(goal: true, text: 'GOAL');
+    for (var frame = 0; frame < 70; frame++) {
+      match.update(1 / 60);
+    }
+    expect(match.phase, MatchPhase.aiming);
+    expect(match.showTapCue, isFalse);
+    match.start();
+    expect(match.showTapCue, isTrue);
+  });
+
+  test('third miss subtitle is that is all, not zero chances', () {
+    final match = MatchModel()..start();
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.resultSubtitle, '2 CHANCES LEFT');
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.resultSubtitle, '1 CHANCE LEFT');
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.resultSubtitle, "THAT'S ALL");
+    expect(match.lives, 0);
+  });
+
+  test('goal thresholds announce defender and streak unlocks', () {
+    final match = MatchModel()..start();
+    match.finishShot(goal: true, text: 'GOAL');
+    match.finishShot(goal: true, text: 'GOAL');
+    expect(match.unlockNote, isEmpty);
+    match.finishShot(goal: true, text: 'GOAL');
+    expect(match.unlockNote, 'MARKER ON');
+    expect(match.resultSubtitle, '+1 POINTS · MARKER ON');
+    match.finishShot(goal: true, text: 'GOAL');
+    match.finishShot(goal: true, text: 'GOAL');
+    expect(match.multiplier, 2);
+    expect(match.unlockNote, '2× ON · NEXT SHOTS');
+    expect(match.resultSubtitle, '+1 POINTS · 2× ON · NEXT SHOTS');
+    for (var i = 0; i < 4; i++) {
+      match.finishShot(goal: true, text: 'GOAL');
+    }
+    expect(match.goals, 9);
+    expect(match.unlockNote, 'SECOND MARKER');
+    expect(match.resultSubtitle, '+2 POINTS · SECOND MARKER');
+  });
+
+  test('ending a run keeps the score and restart clears it', () {
+    final match = MatchModel()..start();
+    match.finishShot(goal: true, text: 'GOAL');
+    match.endRun();
+    expect(match.phase, MatchPhase.finished);
+    expect(match.score, 1);
+    expect(match.shoot(), isFalse);
+    match.start();
+    expect(match.score, 0);
+    expect(match.phase, MatchPhase.aiming);
+    expect(match.showTapCue, isTrue);
+  });
 }

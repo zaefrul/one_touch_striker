@@ -34,6 +34,7 @@ class StrikerGame extends FlameGame {
     for (final number in ['1', '4', '5']) {
       _painterFor(number, 11, const Color(0xff123c33), 0);
     }
+    _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
     _prepareField();
   }
 
@@ -77,6 +78,17 @@ class StrikerGame extends FlameGame {
       _trail.clear();
       onChanged();
     }
+  }
+
+  void endRun() {
+    if (model.phase == MatchPhase.ready ||
+        model.phase == MatchPhase.finished) {
+      return;
+    }
+    model.endRun();
+    matchPaused = false;
+    _trail.clear();
+    onChanged();
   }
 
   @override
@@ -267,11 +279,14 @@ class StrikerGame extends FlameGame {
         Offset(model.aimX, 100), 5, Paint()..color = const Color(0xffd9ff6a));
     c.drawCircle(
         const Offset(200, 548),
-        20 + math.sin(model.clock * 3) * 2,
+        (model.showTapCue ? 24 : 20) + math.sin(model.clock * 3) * 2,
         Paint()
           ..color = const Color(0x55d9ff6a)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.5);
+    if (model.showTapCue) {
+      _label(c, 'TAP', 200, 575, 12, const Color(0xffd9ff6a), spacing: 2.5);
+    }
   }
 
   void _ball(Canvas c) {
