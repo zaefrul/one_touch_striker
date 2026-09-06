@@ -203,8 +203,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _stat('SCORE',
-                            model.score.toString().padLeft(2, '0'),
+                        _stat('SCORE', model.score.toString().padLeft(2, '0'),
                             primary: true),
                         _stat('BEST', '$best'),
                         Column(
