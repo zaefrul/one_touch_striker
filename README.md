@@ -4,36 +4,48 @@ A portrait arcade football game: follow the sweeping arrow, tap the pitch, and b
 
 ## Status
 
-Source implementation provided, **not yet compiled or device-tested**. Flutter and Dart were unavailable in the creation environment and the SDK download could not be reached. No APK, IPA, or verified runtime preview is included. The bootstrap shell script passed a shell syntax check; the archive passed integrity verification. The included Dart tests have not been run.
+The first version was successfully built and tested in an iPhone simulator by the project owner on 6 September 2026. Basic gameplay worked with no major errors; a brief stutter was reported. Physical-device performance and Android installation still need verification.
+
+The rendering update caches static field drawing commands and text layouts, and reuses trail/confetti paints. Performance gains have not yet been measured. See [performance notes](PERFORMANCE_NOTES.md) for the changes and a before/after profiling procedure.
 
 ## Run on your machine
 
-Install the current stable Flutter SDK and the platform toolchain, then extract this archive.
+Install stable Flutter and the platform toolchain, then clone this repository:
 
 ```bash
+git clone git@github.com:zaefrul/one_touch_striker.git
 cd one_touch_striker
-bash tool/bootstrap.sh
+flutter pub get
+flutter analyze
+flutter test
 flutter devices
 flutter run
 ```
 
-The script generates Android, iOS, and web platform wrappers with `flutter create`, restores the supplied application source/tests/pubspec, resolves packages, formats Dart, runs analysis, and executes the tests. It stops on any failure. Commit the generated platform folders and `pubspec.lock` after successful setup for reproducible future builds. The archive intentionally contains source and bootstrap instructions rather than manually fabricated platform wrappers.
+Android, iOS, and web platform projects and the dependency lockfile are committed. Bootstrap is only needed to regenerate missing platform scaffolding. Use a Flutter version compatible with the committed lockfile; its current SDK constraints require Dart 3.12+ and Flutter 3.44+.
 
-Flutter 3.27 / Dart 3.6 or newer is the declared baseline; dependency resolution on an older installation may require an SDK upgrade. Use stable Flutter for setup. Android needs the Android SDK and an emulator or USB-debugging-enabled phone. Building for iOS requires macOS, Xcode, and appropriate signing when using a physical device.
+Android requires the Android SDK and an emulator or connected phone. Building for iOS requires macOS and Xcode, plus signing for a physical device.
 
-For browser testing after bootstrap:
+For browser testing:
 
 ```bash
 flutter run -d chrome
 ```
 
-For an Android debug APK after the checks pass:
+For an Android test APK:
 
 ```bash
 flutter build apk --debug
 ```
 
-Output: `build/app/outputs/flutter-apk/app-debug.apk`. This is a debug build, not a signed store release.
+Output: `build/app/outputs/flutter-apk/app-debug.apk`. This is a debug build for testing.
+
+## Automated checks and APK
+
+The **Flutter checks and Android APK** workflow runs on pull requests and pushes to `main`, and can be started manually after it reaches `main`. It resolves the committed dependencies, runs analysis and tests, then builds and uploads a debug APK. Open the completed run under **Actions** and download **one-touch-striker-debug-apk** from Artifacts. Failed checks prevent APK generation.
+
+Successful CI verifies the build and automated tests; it does not establish real-device performance.
+
 
 ## Rules
 
@@ -57,7 +69,7 @@ Output: `build/app/outputs/flutter-apk/app-debug.apk`. This is a debug build, no
 - Ball trail, net graphics, goal particles and result feedback
 - Optional haptic feedback and local best score storage
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
-- Seven simulation tests and one widget smoke test, pending execution
+- Seven simulation tests and one widget smoke test, run by CI
 
 Sound effects and slow-motion replays are not included in this first prototype. There are no ads, purchases, accounts, multiplayer, analytics, or online services. Graphics and balance need real-device playtesting before release.
 
@@ -91,3 +103,4 @@ The fixed-step collision approximation uses small substeps (up to 1/240 second).
 - Flutter installation: https://docs.flutter.dev/install
 - FlameGame API: https://pub.dev/documentation/flame/latest/game/FlameGame-class.html
 - SharedPreferencesAsync API: https://pub.dev/documentation/shared_preferences/latest/shared_preferences/SharedPreferencesAsync-class.html
+
