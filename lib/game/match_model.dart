@@ -1,6 +1,15 @@
 import 'dart:math' as math;
+import 'challenge_stage.dart';
 
-enum MatchPhase { ready, aiming, flying, result, finished }
+enum MatchPhase {
+  ready,
+  stageIntro,
+  aiming,
+  flying,
+  result,
+  stageCleared,
+  finished,
+}
 
 /// Pure Dart simulation. Coordinates are in a 400 × 640 logical pitch.
 /// Fixed substeps prevent fast shots tunnelling through moving defenders.
@@ -34,11 +43,36 @@ class MatchModel {
   bool lastWasPost = false;
   bool firstAim = true;
   int resultSerial = 0;
+  int? stageIndex;
+  int cornerGoals = 0;
+  double secondsRemaining = 0;
 
   int get lives => 3 - misses;
-  int get level => 1 + goals ~/ 3;
+  int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
   int get multiplier => streak >= 5 ? 2 : 1;
-  int get defenderCount => goals >= 9 ? 2 : (goals >= 3 ? 1 : 0);
+  int get defenderCount =>
+      stage?.defenders ?? (goals >= 9 ? 2 : (goals >= 3 ? 1 : 0));
+  ChallengeStage? get stage =>
+      stageIndex == null ? null : challengeStages[stageIndex!];
+  bool get isChallenge => stageIndex != null;
+  bool get isPlaying =>
+      phase == MatchPhase.aiming ||
+      phase == MatchPhase.flying ||
+      phase == MatchPhase.result;
+  bool get isTimed => stage?.timeLimit != null;
+  bool get timeExpired => isTimed && secondsRemaining <= 0;
+  int get timerSeconds => secondsRemaining.ceil();
+  int get objectiveProgress => switch (stage?.objective) {
+        StageObjective.goals => goals,
+        StageObjective.corners => cornerGoals,
+        StageObjective.points => score,
+        null => 0,
+      };
+  bool get objectiveMet => isChallenge && objectiveProgress >= stage!.target;
+  int get earnedStars => phase == MatchPhase.stageCleared ? lives : 0;
+  bool get isFinalStage => stageIndex == challengeStages.length - 1;
+  int get accuracy =>
+      goals + misses == 0 ? 0 : (100 * goals / (goals + misses)).round();
   bool get showTapCue => firstAim && phase == MatchPhase.aiming;
   bool get onFire => multiplier == 2;
   bool get lastChance =>
@@ -59,29 +93,78 @@ class MatchModel {
     return lives == 1 ? '1 CHANCE LEFT' : '$lives CHANCES LEFT';
   }
   double get aimX =>
-      200 + 172 * math.sin(clock * (1.35 + math.min(goals, 18) * .055));
-  double get keeperX =>
-      200 + 100 * math.sin(clock * (1.0 + math.min(goals, 18) * .06) + .8);
+      200 + 172 * math.sin(clock *
+          (stage?.aimSpeed ?? (1.35 + math.min(goals, 18) * .055)));
+  double get keeperX {
+    final current = stage;
+    final speed =
+        current?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
+    final tempo = (current?.keeperTempo ?? 0) * math.sin(clock * 2);
+    return 200 + (current?.keeperRange ?? 100) *
+        math.sin(clock * speed + .8 + tempo);
+  }
   double get keeperY => 126;
   double defenderY(int index) => 278.0 + index * 108;
-  double defenderX(int index) =>
-      200 + 120 * math.sin(clock * (1.05 + index * .25) + index * 2.2);
+  double defenderX(int index) {
+    final current = stage;
+    if (current != null && current.pattern == DefencePattern.crossing) {
+      return 200 +
+          120 * math.sin(clock * current.defenderSpeed + index * math.pi);
+    }
+    return 200 + 120 * math.sin(clock *
+        ((current?.defenderSpeed ?? 1.05) + index * .25) + index * 2.2);
+  }
 
   void start() {
+    stageIndex = null;
+    _resetRun();
+    phase = MatchPhase.aiming;
+  }
+
+  void prepareStage(int index) {
+    RangeError.checkValidIndex(index, challengeStages, 'index');
+    stageIndex = index;
+    _resetRun();
+    secondsRemaining = stage!.timeLimit?.toDouble() ?? 0;
+    phase = MatchPhase.stageIntro;
+  }
+
+  void startStage() {
+    if (phase == MatchPhase.stageIntro) {
+      phase = MatchPhase.aiming;
+    }
+  }
+
+  void returnToMenu() {
+    stageIndex = null;
+    _resetRun();
+    phase = MatchPhase.ready;
+  }
+
+  void _resetRun() {
     score = goals = misses = streak = lastPoints = 0;
+    cornerGoals = 0;
     clock = 0;
+    resultTime = 0;
+    secondsRemaining = 0;
+    shotTargetX = 200;
     message = '';
     unlockNote = '';
     lastWasGoal = lastWasCorner = lastWasPost = false;
     firstAim = true;
     resetBall();
-    phase = MatchPhase.aiming;
   }
 
   void endRun() {
-    if (phase == MatchPhase.ready || phase == MatchPhase.finished) {
+    if (!isPlaying) {
       return;
     }
+    // Ending during the final goal celebration must not discard a clear.
+    if (objectiveMet) {
+      phase = MatchPhase.stageCleared;
+      return;
+    }
+    message = isChallenge ? 'STAGE ENDED' : 'FULL TIME';
     phase = MatchPhase.finished;
   }
 
@@ -91,7 +174,7 @@ class MatchModel {
   }
 
   bool shoot() {
-    if (phase != MatchPhase.aiming) {
+    if (phase != MatchPhase.aiming || timeExpired) {
       return false;
     }
     shotTargetX = aimX;
@@ -100,25 +183,45 @@ class MatchModel {
     return true;
   }
 
-  void update(double dt) {
-    if (phase == MatchPhase.ready || phase == MatchPhase.finished) {
+  void update(double dt, {double timeScale = 1}) {
+    if (!isPlaying) {
       return;
     }
     // Ignore long wall-clock gaps (app suspension, debugger, frame stalls).
     var remaining = dt.clamp(0.0, .1).toDouble();
-    while (remaining > 0) {
+    while (remaining > 0 && isPlaying) {
       final step = math.min(remaining, 1 / 240);
-      tick(step);
+      // Charge active time before applying cinematic slow motion. Briefings,
+      // goal feedback, and pauses do not consume the stage clock.
+      if (isTimed &&
+          (phase == MatchPhase.aiming || phase == MatchPhase.flying)) {
+        secondsRemaining = math.max(0, secondsRemaining - step);
+        if (timeExpired && phase == MatchPhase.aiming) {
+          message = "TIME'S UP!";
+          phase = MatchPhase.finished;
+          return;
+        }
+      }
+      tick(step * timeScale);
       remaining -= step;
     }
   }
 
   void tick(double dt) {
+    if (!isPlaying) {
+      return;
+    }
     clock += dt;
     if (phase == MatchPhase.result) {
       resultTime -= dt;
       if (resultTime <= 0) {
-        if (misses >= 3) {
+        // A shot released before zero may still clear the stage.
+        if (objectiveMet) {
+          phase = MatchPhase.stageCleared;
+        } else if (misses >= 3 || timeExpired) {
+          if (timeExpired) {
+            message = "TIME'S UP!";
+          }
           phase = MatchPhase.finished;
         } else {
           resetBall();
@@ -204,14 +307,24 @@ class MatchModel {
       lastPoints = (corner ? 3 : 1) * multiplier;
       score += lastPoints;
       goals++;
+      if (corner) {
+        cornerGoals++;
+      }
       streak++;
-      if (goals == 3) {
+      if (!isChallenge && goals == 3) {
         unlockNote = 'MARKER ON';
-      } else if (goals == 9) {
+      } else if (!isChallenge && goals == 9) {
         unlockNote = 'SECOND MARKER';
       }
       if (streak == 5) {
         unlockNote = '2× ON · NEXT SHOTS';
+      }
+      if (isChallenge) {
+        unlockNote = objectiveMet
+            ? 'STAGE CLEAR!'
+            : stage!.objective == StageObjective.corners && !corner
+                ? 'CORNERS ADVANCE THE STAGE'
+                : '$objectiveProgress/${stage!.target} ${stage!.unit.toUpperCase()}';
       }
     } else {
       misses++;

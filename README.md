@@ -8,6 +8,8 @@ The first version was successfully built and tested in an iPhone simulator by th
 
 The rendering update caches static field drawing commands and text layouts, and reuses trail/confetti paints. Performance gains have not yet been measured. See [performance notes](PERFORMANCE_NOTES.md) for the changes and a before/after profiling procedure.
 
+The challenge milestone adds six stages with different objectives, opponents, pitch colours, unlocks and saved stars. Select **PLAY CHALLENGES** from the home screen. Classic remains available under **LET'S PLAY**. This milestone is source-only: no analysis, tests, builds or game runs were executed for publication. The owner will validate it locally. See [challenge design and playtest notes](CHALLENGES.md).
+
 ## Run on your machine
 
 Install stable Flutter and the platform toolchain, then clone this repository:
@@ -40,14 +42,14 @@ flutter build apk --debug
 
 Output: `build/app/outputs/flutter-apk/app-debug.apk`. This is a debug build for testing.
 
-## Automated checks and APK
+## Optional manual checks and APK
 
-The **Flutter checks and Android APK** workflow runs on pull requests and pushes to `main`, and can be started manually after it reaches `main`. It resolves the committed dependencies, runs analysis and tests, then builds and uploads a debug APK. Open the completed run under **Actions** and download **one-touch-striker-debug-apk** from Artifacts. Failed checks prevent APK generation.
+The **Flutter checks and Android APK** workflow in this branch has only a `workflow_dispatch` trigger. Push and pull-request triggers have been removed so source publication does not automatically run checks or build an APK. No workflow was dispatched for this milestone. The version on `main` will remain unchanged until these changes are integrated.
 
-Successful CI verifies the build and automated tests; it does not establish real-device performance.
+If the owner later chooses to use it after integration, the manual workflow resolves committed dependencies, runs analysis and tests, then uploads **one-touch-striker-debug-apk**. Local validation is the current handoff; successful compilation alone would not establish physical-device performance.
 
 
-## Rules
+## Classic rules
 
 - Tap the pitch while aiming. The target locks at the instant of the tap.
 - The ball travels on a straight path; the goalkeeper and defenders keep moving.
@@ -59,6 +61,21 @@ Successful CI verifies the build and automated tests; it does not establish real
 - Pause freezes the match. Backgrounding the app requires an explicit resume.
 - Best score is saved locally after each new best. A failed storage operation displays a notice; gameplay remains available.
 
+## Challenge mode
+
+| Stage | Objective | New challenge |
+| --- | --- | --- |
+| 1 · First Touch | Score 3 goals | Slower aim and keeper to learn timing |
+| 2 · Moving Wall | Score 3 goals | One sweeping defender |
+| 3 · Corner Artist | Score 2 corner goals | Precision; centre goals do not advance the objective |
+| 4 · Beat the Clock | Score 4 goals in 25 active seconds | Faster decisions against the keeper |
+| 5 · Double Trouble | Score 4 goals | Two defenders crossing in opposite directions |
+| 6 · Captain's Finish | Score 8 points in 30 active seconds | Two defenders and a keeper with changing pace |
+
+Every attempt starts with three chances and its own score. Clearing a stage unlocks the next; replay any unlocked stage immediately. A clear with zero, one or two misses awards three, two or one stars respectively. Only the best stars per stage are saved, under `challenge_stars_v1`; Classic best scores use their existing key and are not changed by challenges. An unfinished attempt restarts from its briefing after relaunch.
+
+Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Opponents use fixed stage patterns; Classic's goal-based unlocks do not add extra defenders during a challenge.
+
 ## Implemented
 
 - Flutter menus, HUD, three-chance display, restart and pause overlay
@@ -68,10 +85,12 @@ Successful CI verifies the build and automated tests; it does not establish real
 - Corner targets, points, streak multiplier and escalating difficulty
 - Ball trail, net graphics, goal particles and result feedback
 - Optional haptic feedback and local best score storage
+- Six-stage challenge map, objective HUD, countdown, stage briefings and results
+- Stage-specific pitch palettes, defence patterns, unlocks, retries and saved stars
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
-- Seven simulation tests and one widget smoke test, run by CI
+- Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
 
-Sound effects and slow-motion replays are not included in this first prototype. There are no ads, purchases, accounts, multiplayer, analytics, or online services. Graphics and balance need real-device playtesting before release.
+Corner and near-post shots have cinematic slow motion; sound effects and recorded replays are not included. There are no ads, purchases, accounts, multiplayer, analytics, or online services. Graphics and stage balance need real-device playtesting before release.
 
 ## Project structure
 
@@ -79,9 +98,13 @@ Sound effects and slow-motion replays are not included in this first prototype. 
 | --- | --- |
 | `lib/main.dart` | App shell, menu/HUD, lifecycle pause, storage and haptics |
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
+| `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/striker_game.dart` | Flame adapter and procedural rendering |
+| `lib/ui/challenge_panel.dart` | Stage map, briefings, clear and retry panels |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
+| `test/challenge_model_test.dart` | Objective, timer, buzzer-shot, retry and star-save regression cases |
+| `test/challenge_widget_test.dart` | Challenge entry/retry, saved unlocks and pause/countdown cases |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 
 ## First device checks

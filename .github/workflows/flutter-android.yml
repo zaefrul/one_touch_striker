@@ -1,9 +1,6 @@
 name: Flutter checks and Android APK
 
 on:
-  pull_request:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

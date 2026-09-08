@@ -14,6 +14,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('ONE TAP.\nALL GLORY.'), findsOneWidget);
     expect(find.text('LET’S PLAY  →'), findsOneWidget);
+    await tester.ensureVisible(find.text('LET’S PLAY  →'));
     await tester.tap(find.text('LET’S PLAY  →'));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('ONE TAP.\nALL GLORY.'), findsNothing);
@@ -28,6 +29,7 @@ void main() {
   testWidgets('pause overlay can end the run', (tester) async {
     await tester.pumpWidget(const StrikerApp());
     await tester.pump(const Duration(milliseconds: 50));
+    await tester.ensureVisible(find.text('LET’S PLAY  →'));
     await tester.tap(find.text('LET’S PLAY  →'));
     await tester.pump(const Duration(milliseconds: 50));
     await tester.tap(find.byTooltip('Pause'));

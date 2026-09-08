@@ -13,10 +13,12 @@ class StrikerGame extends FlameGame {
   bool matchPaused = false;
   int _serial = 0;
   MatchPhase _previous = MatchPhase.ready;
+  int _previousSeconds = 0;
   final List<Offset> _trail = [];
   double _trailTime = 0;
   double _kickTime = 0;
   Picture? _fieldPicture;
+  int? _fieldStageIndex;
   final Map<(String, double, Color, double), TextPainter> _labelCache = {};
   final List<Paint> _trailPaints = List.generate(
     14,
@@ -47,9 +49,11 @@ class StrikerGame extends FlameGame {
   }
 
   void _prepareField() {
-    if (_fieldPicture != null) {
+    if (_fieldPicture != null && _fieldStageIndex == model.stageIndex) {
       return;
     }
+    _fieldPicture?.dispose();
+    _fieldStageIndex = model.stageIndex;
     // Keep logical vector commands so resizing does not blur the pitch.
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
@@ -76,9 +80,32 @@ class StrikerGame extends FlameGame {
 
   void startMatch() {
     model.start();
+    _resetPresentation();
+  }
+
+  void prepareStage(int index) {
+    model.prepareStage(index);
+    _resetPresentation();
+  }
+
+  void startStage() {
+    model.startStage();
+    _resetPresentation();
+  }
+
+  void returnToMenu() {
+    model.returnToMenu();
+    _resetPresentation();
+  }
+
+  void _resetPresentation() {
     matchPaused = false;
     _kickTime = 0;
+    _trailTime = 0;
     _trail.clear();
+    _previous = model.phase;
+    _serial = model.resultSerial;
+    _previousSeconds = model.timerSeconds;
     onChanged();
   }
 
@@ -115,12 +142,6 @@ class StrikerGame extends FlameGame {
     return 1;
   }
 
-  double get _flightT {
-    return ((MatchModel.ballStartY - model.ballY) /
-            (MatchModel.ballStartY - MatchModel.goalY))
-        .clamp(0.0, 1.0);
-  }
-
   @override
   void update(double dt) {
     super.update(dt);
@@ -130,7 +151,7 @@ class StrikerGame extends FlameGame {
     if (_kickTime > 0) {
       _kickTime = math.max(0, _kickTime - dt);
     }
-    model.update(dt * _dramaScale());
+    model.update(dt, timeScale: _dramaScale());
     if (model.phase == MatchPhase.flying) {
       _trailTime += dt;
       if (_trailTime >= .012) {
@@ -147,8 +168,10 @@ class StrikerGame extends FlameGame {
       _serial = model.resultSerial;
       onShotResult();
     }
-    if (_previous != model.phase) {
+    // The timer is a whole-second HUD label; do not rebuild Flutter every frame.
+    if (_previous != model.phase || _previousSeconds != model.timerSeconds) {
       _previous = model.phase;
+      _previousSeconds = model.timerSeconds;
       onChanged();
     }
   }
@@ -166,16 +189,13 @@ class StrikerGame extends FlameGame {
     _prepareField();
     canvas.drawPicture(_fieldPicture!);
     _stakes(canvas);
-    final flight = _flightT;
     for (var i = 0; i < model.defenderCount; i++) {
-      final lean = model.phase == MatchPhase.flying
-          ? (model.ballX - model.defenderX(i)) * .08 * flight
-          : 0.0;
-      _player(canvas, model.defenderX(i) + lean, model.defenderY(i),
+      _player(canvas, model.defenderX(i), model.defenderY(i),
           const Color(0xffff686b), '${4 + i}');
     }
-    final keeper = _keeperDraw();
-    _player(canvas, keeper.dx, keeper.dy, const Color(0xffffc857), '1',
+    // Render at the same anchors used by collision detection. Translating a
+    // player toward the shot only in render made visible gaps misleading.
+    _player(canvas, model.keeperX, model.keeperY, const Color(0xffffc857), '1',
         keeper: true);
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
       _aim(canvas);
@@ -191,18 +211,6 @@ class StrikerGame extends FlameGame {
       _postSpark(canvas);
     }
     canvas.restore();
-  }
-
-  Offset _keeperDraw() {
-    var x = model.keeperX;
-    var y = model.keeperY;
-    if (model.phase == MatchPhase.flying ||
-        (model.phase == MatchPhase.result && !model.lastWasGoal)) {
-      final t = _flightT;
-      x += (model.shotTargetX - model.keeperX) * .5 * t;
-      y += 8 * t;
-    }
-    return Offset(x, y);
   }
 
   void _stakes(Canvas c) {
@@ -236,13 +244,13 @@ class StrikerGame extends FlameGame {
   void _pitch(Canvas c) {
     final rect = RRect.fromRectAndRadius(
         const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
-    c.drawRRect(rect, Paint()..color = const Color(0xff126a50));
+    c.drawRRect(rect, Paint()..color = Color(model.stage?.pitchColor ?? 0xff126a50));
     c.save();
     c.clipRRect(rect);
     for (var i = 0; i < 9; i++) {
       if (i.isEven) {
         c.drawRect(Rect.fromLTWH(12, 12 + i * 70, 376, 70),
-            Paint()..color = const Color(0xff167456));
+            Paint()..color = Color(model.stage?.stripeColor ?? 0xff167456));
       }
     }
     c.restore();
@@ -261,7 +269,8 @@ class StrikerGame extends FlameGame {
     c.drawCircle(const Offset(200, 436), 57, line);
     c.drawCircle(
         const Offset(200, 216), 3, Paint()..color = const Color(0xff8bddad));
-    _label(c, 'STRIKER ARENA', 200, 36, 11, const Color(0xff9bd7b6),
+    _label(c, model.stage?.name.toUpperCase() ?? 'STRIKER ARENA',
+        200, 36, 11, const Color(0xff9bd7b6),
         spacing: 3);
   }
 
