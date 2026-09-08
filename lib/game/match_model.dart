@@ -30,6 +30,7 @@ class MatchModel {
   int goals = 0;
   int misses = 0;
   int streak = 0;
+  int longestStreak = 0;
   int lastPoints = 0;
   double clock = 0;
   double ballX = ballStartX;
@@ -46,6 +47,10 @@ class MatchModel {
   int? stageIndex;
   int cornerGoals = 0;
   double secondsRemaining = 0;
+  double _aimAngle = 0;
+  double _keeperAngle = .8;
+  double _motionScale = 1;
+  double ballAngle = 0;
 
   int get lives => 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
@@ -73,6 +78,8 @@ class MatchModel {
   bool get isFinalStage => stageIndex == challengeStages.length - 1;
   int get accuracy =>
       goals + misses == 0 ? 0 : (100 * goals / (goals + misses)).round();
+  int get resolvedShots => goals + misses;
+  double get motionScale => _motionScale;
   bool get showTapCue => firstAim && phase == MatchPhase.aiming;
   bool get onFire => multiplier == 2;
   bool get lastChance =>
@@ -92,16 +99,16 @@ class MatchModel {
     }
     return lives == 1 ? '1 CHANCE LEFT' : '$lives CHANCES LEFT';
   }
-  double get aimX =>
-      200 + 172 * math.sin(clock *
-          (stage?.aimSpeed ?? (1.35 + math.min(goals, 18) * .055)));
+  double get _aimSpeed =>
+      stage?.aimSpeed ?? (1.35 + math.min(goals, 18) * .055);
+  double get _keeperSpeed =>
+      stage?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
+  double get aimX => 200 + 172 * math.sin(_aimAngle);
   double get keeperX {
     final current = stage;
-    final speed =
-        current?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
     final tempo = (current?.keeperTempo ?? 0) * math.sin(clock * 2);
     return 200 + (current?.keeperRange ?? 100) *
-        math.sin(clock * speed + .8 + tempo);
+        math.sin(_keeperAngle + tempo);
   }
   double get keeperY => 126;
   double defenderY(int index) => 278.0 + index * 108;
@@ -143,8 +150,12 @@ class MatchModel {
 
   void _resetRun() {
     score = goals = misses = streak = lastPoints = 0;
+    longestStreak = 0;
     cornerGoals = 0;
     clock = 0;
+    _aimAngle = 0;
+    _keeperAngle = .8;
+    _motionScale = 1;
     resultTime = 0;
     secondsRemaining = 0;
     shotTargetX = 200;
@@ -171,6 +182,7 @@ class MatchModel {
   void resetBall() {
     ballX = ballStartX;
     ballY = ballStartY;
+    ballAngle = 0;
   }
 
   bool shoot() {
@@ -183,7 +195,7 @@ class MatchModel {
     return true;
   }
 
-  void update(double dt, {double timeScale = 1}) {
+  void update(double dt, {double timeScale = 1, bool cinematic = false}) {
     if (!isPlaying) {
       return;
     }
@@ -202,16 +214,43 @@ class MatchModel {
           return;
         }
       }
-      tick(step * timeScale);
+      _easeMotion(step, cinematic);
+      tick(step * timeScale, motionScale: _motionScale);
       remaining -= step;
     }
   }
 
-  void tick(double dt) {
+  void _easeMotion(double dt, bool cinematic) {
+    if (!cinematic) {
+      _motionScale = 1;
+      return;
+    }
+    var target = 1.0;
+    if (phase == MatchPhase.flying &&
+        (shotHeadsToCornerGoal || shotHeadsToPost)) {
+      final approach = ((goalY + 140 - ballY) / 90).clamp(0.0, 1.0);
+      final eased = approach * approach * (3 - 2 * approach);
+      target = 1.0 - .62 * eased;
+    }
+    if ((target - _motionScale).abs() < .0001) {
+      _motionScale = target;
+      return;
+    }
+    // Ease into the close-up and back out during feedback. Substep integration
+    // keeps the transition independent of the display's refresh rate.
+    _motionScale += (target - _motionScale) * (1 - math.exp(-16 * dt));
+  }
+
+  void tick(double dt, {double motionScale = 1}) {
     if (!isPlaying) {
       return;
     }
-    clock += dt;
+    final motionDt = dt * motionScale;
+    clock += motionDt;
+    // Integrate phase rather than multiplying the entire elapsed clock by a
+    // new speed. Scoring may accelerate players, but cannot teleport them.
+    _aimAngle += motionDt * _aimSpeed;
+    _keeperAngle += motionDt * _keeperSpeed;
     if (phase == MatchPhase.result) {
       resultTime -= dt;
       if (resultTime <= 0) {
@@ -234,7 +273,8 @@ class MatchModel {
       return;
     }
     const speedY = 780.0;
-    ballY -= speedY * dt;
+    ballAngle += 16 * motionDt;
+    ballY -= speedY * motionDt;
     final progress =
         ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0);
     ballX = ballStartX + (shotTargetX - ballStartX) * progress;
@@ -311,6 +351,7 @@ class MatchModel {
         cornerGoals++;
       }
       streak++;
+      longestStreak = math.max(longestStreak, streak);
       if (!isChallenge && goals == 3) {
         unlockNote = 'MARKER ON';
       } else if (!isChallenge && goals == 9) {

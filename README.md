@@ -6,7 +6,7 @@ A portrait arcade football game: follow the sweeping arrow, tap the pitch, and b
 
 The first version was successfully built and tested in an iPhone simulator by the project owner on 6 September 2026. Basic gameplay worked with no major errors; a brief stutter was reported. Physical-device performance and Android installation still need verification.
 
-The rendering update caches static field drawing commands and text layouts, and reuses trail/confetti paints. Performance gains have not yet been measured. See [performance notes](PERFORMANCE_NOTES.md) for the changes and a before/after profiling procedure.
+The rendering updates cache field and player drawing commands, text layouts, dynamic paints and paths. Movement now maintains continuous phases as Classic difficulty increases; cinematic slow motion eases in and out and trails sample consistently across refresh rates. Results include accuracy, longest streak and a Classic personal-best celebration. Performance gains have not yet been measured. See [performance notes](PERFORMANCE_NOTES.md) for source findings and opt-in local profiling markers.
 
 The challenge milestone adds six stages with different objectives, opponents, pitch colours, unlocks and saved stars. Select **PLAY CHALLENGES** from the home screen. Classic remains available under **LET'S PLAY**. This milestone is source-only: no analysis, tests, builds or game runs were executed for publication. The owner will validate it locally. See [challenge design and playtest notes](CHALLENGES.md).
 
@@ -85,6 +85,9 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Corner targets, points, streak multiplier and escalating difficulty
 - Ball trail, net graphics, goal particles and result feedback
 - Optional haptic feedback and local best score storage
+- Continuous motion, eased highlight shots, cached player drawings and consistent trail sampling
+- Accuracy, longest streak, shot totals and a Classic personal-best result badge
+- Optional local DevTools phase markers via `--dart-define=STRIKER_TRACE=true`
 - Six-stage challenge map, objective HUD, countdown, stage briefings and results
 - Stage-specific pitch palettes, defence patterns, unlocks, retries and saved stars
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
@@ -100,11 +103,16 @@ Corner and near-post shots have cinematic slow motion; sound effects and recorde
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/striker_game.dart` | Flame adapter and procedural rendering |
+| `lib/game/shot_trail.dart` | Fixed-interval trail sampling with reusable storage |
+| `lib/game/playtest_trace.dart` | Opt-in local DevTools phase markers |
 | `lib/ui/challenge_panel.dart` | Stage map, briefings, clear and retry panels |
+| `lib/ui/run_summary.dart` | Shared result statistics and personal-best badge |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
 | `test/challenge_model_test.dart` | Objective, timer, buzzer-shot, retry and star-save regression cases |
 | `test/challenge_widget_test.dart` | Challenge entry/retry, saved unlocks and pause/countdown cases |
+| `test/motion_model_test.dart` | Movement continuity, easing, trail timing and statistics cases |
+| `test/results_widget_test.dart` | Personal-best, tied-replay and record preservation cases |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 
 ## First device checks
@@ -126,4 +134,3 @@ The fixed-step collision approximation uses small substeps (up to 1/240 second).
 - Flutter installation: https://docs.flutter.dev/install
 - FlameGame API: https://pub.dev/documentation/flame/latest/game/FlameGame-class.html
 - SharedPreferencesAsync API: https://pub.dev/documentation/shared_preferences/latest/shared_preferences/SharedPreferencesAsync-class.html
-

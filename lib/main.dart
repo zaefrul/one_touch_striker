@@ -7,6 +7,7 @@ import 'game/challenge_stage.dart';
 import 'game/match_model.dart';
 import 'game/striker_game.dart';
 import 'ui/challenge_panel.dart';
+import 'ui/run_summary.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -50,11 +51,15 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final prefs = SharedPreferencesAsync();
   final progress = ChallengeProgress();
   late final StrikerGame game;
+  late final Widget _pitch;
   int best = 0;
   bool haptics = true;
   bool storageAvailable = true;
   bool _progressLoaded = false;
   bool _showStages = false;
+  bool _bestLoaded = false;
+  bool _classicRunActive = false;
+  int _bestBeforeRun = 0;
   Future<void> _writes = Future<void>.value();
 
   @override
@@ -62,14 +67,16 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     game = StrikerGame(model, onChanged: _refresh, onShotResult: _result);
+    // GameWidget already supplies a repaint boundary. Retain this widget too,
+    // so HUD and result changes do not rebuild its subtree.
+    _pitch = GameWidget(game: game);
     unawaited(_load());
   }
 
   Future<void> _load() async {
+    game.trace.event('storage.load.begin');
     try {
       final saved = await prefs.getInt('best_score') ?? 0;
-      final feedback = await prefs.getBool('haptics') ?? true;
-      final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
       if (!mounted) {
         return;
       }
@@ -77,18 +84,29 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         if (saved > best) {
           best = saved;
         }
-        haptics = feedback;
-        progress.mergeSaved(savedStars);
+        if (_classicRunActive && saved > _bestBeforeRun) {
+          _bestBeforeRun = saved;
+        }
+        _bestLoaded = true;
       });
       // Reconcile a new score earned while storage was loading.
       if (best > saved) {
         _saveInt('best_score', best);
+      }
+      final feedback = await prefs.getBool('haptics') ?? true;
+      final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
+      if (mounted) {
+        setState(() {
+          haptics = feedback;
+          progress.mergeSaved(savedStars);
+        });
       }
     } catch (_) {
       if (mounted) {
         setState(() => storageAvailable = false);
       }
     } finally {
+      game.trace.event('storage.load.end');
       if (mounted) {
         setState(() => _progressLoaded = true);
       }
@@ -96,7 +114,14 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _saveInt(String key, int value) {
-    _enqueueWrite(() => prefs.setInt(key, value));
+    _enqueueWrite(() async {
+      game.trace.event('save.$key.begin');
+      try {
+        await prefs.setInt(key, value);
+      } finally {
+        game.trace.event('save.$key.end');
+      }
+    });
   }
 
   void _saveBool(String key, bool value) {
@@ -127,9 +152,13 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     // Stage attempts have their own rewards; keep the Classic record comparable.
     if (!model.isChallenge && model.score > best) {
       best = model.score;
-      _saveInt('best_score', best);
+      // Do not overwrite an existing record until its initial read completes.
+      if (_bestLoaded) {
+        _saveInt('best_score', best);
+      }
     }
     if (haptics) {
+      game.trace.event('haptic.result');
       unawaited(model.lastWasCorner
           ? HapticFeedback.heavyImpact()
           : HapticFeedback.mediumImpact());
@@ -138,13 +167,24 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _shoot() {
-    if (game.matchPaused || model.phase != MatchPhase.aiming) {
+    // Lock the aim before issuing the platform haptic call.
+    if (!game.shoot()) {
       return;
     }
     if (haptics) {
+      game.trace.event('haptic.tap');
       unawaited(HapticFeedback.mediumImpact());
     }
-    game.shoot();
+  }
+
+  bool get _personalBest =>
+      _classicRunActive && _bestLoaded &&
+      model.score > _bestBeforeRun;
+
+  void _startClassic() {
+    _bestBeforeRun = best;
+    _classicRunActive = true;
+    game.startMatch();
   }
 
   void _pause() {
@@ -159,16 +199,19 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       return;
     }
     _showStages = false;
+    _classicRunActive = false;
     game.prepareStage(index);
   }
 
   void _stageMap() {
     _showStages = true;
+    _classicRunActive = false;
     game.returnToMenu();
   }
 
   void _home() {
     _showStages = false;
+    _classicRunActive = false;
     game.returnToMenu();
   }
 
@@ -185,6 +228,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     game.pauseEngine();
+    game.trace.dispose();
     super.dispose();
   }
 
@@ -304,7 +348,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTapDown: (_) => _shoot(),
-                          child: GameWidget(game: game),
+                          child: _pitch,
                         ),
                       ),
                     ),
@@ -429,7 +473,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             ready
                 ? 'Follow the arrow. Pick your moment.\nBeat the keeper with a single tap.'
                 : finished
-                    ? '${model.goals} goals  ·  Best $best\nCan you find the corner next time?'
+                    ? 'Best $best · Aim for ${best + 1} points next.'
                     : model.isChallenge
                         ? '${model.stage!.name}\nYour objective and clock are paused.'
                         : 'Your match is waiting.',
@@ -437,6 +481,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             style: const TextStyle(
                 color: Colors.white70, height: 1.6, fontSize: 14)),
         const SizedBox(height: 22),
+        if (finished) ...[
+          RunSummary(model: model, personalBest: _personalBest,
+              previousBest: _bestBeforeRun),
+          const SizedBox(height: 22),
+        ],
         if (ready) ...[
           SizedBox(
             width: double.infinity,
@@ -473,7 +522,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                 if (game.matchPaused && !finished && !ready) {
                   _pause();
                 } else {
-                  game.startMatch();
+                  _startClassic();
                 }
               },
               child: Text(

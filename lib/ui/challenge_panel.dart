@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/challenge_stage.dart';
 import '../game/match_model.dart';
+import 'run_summary.dart';
 
 /// These panels sit inside the game's scrollable overlay, including on small
 /// phones and with larger accessibility text sizes.
@@ -142,9 +143,7 @@ class StagePanel extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.5))
       else
-        Text('${model.goals} goals · ${model.accuracy}% accuracy · ${model.score} points',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        RunSummary(model: model),
       const SizedBox(height: 22),
       SizedBox(
         width: double.infinity,
