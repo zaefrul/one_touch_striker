@@ -553,7 +553,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 8),
-          Text('6 stages · ${progress.totalStars}/${challengeStages.length * 3} stars · New objectives',
+          Text('${challengeStages.length} stages · ${progress.totalStars}/${challengeStages.length * 3} stars · New objectives',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 11, color: Colors.white60)),
           const SizedBox(height: 20),

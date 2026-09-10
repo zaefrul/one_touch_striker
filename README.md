@@ -8,7 +8,7 @@ The first version was successfully built and tested in an iPhone simulator by th
 
 The rendering updates cache field and player drawing commands, text layouts, dynamic paints and paths. Movement now maintains continuous phases as Classic difficulty increases; cinematic slow motion eases in and out and trails sample consistently across refresh rates. Results include accuracy, longest streak and a Classic personal-best celebration. Performance gains have not yet been measured. See [performance notes](PERFORMANCE_NOTES.md) for source findings and opt-in local profiling markers.
 
-The challenge milestone adds six stages with different objectives, opponents, pitch colours, unlocks and saved stars. Select **PLAY CHALLENGES** from the home screen. Classic remains available under **LET'S PLAY**. This milestone is source-only: no analysis, tests, builds or game runs were executed for publication. The owner will validate it locally. See [challenge design and playtest notes](CHALLENGES.md).
+Challenge mode now has **12 stages and 36 stars**, with six harder Champion stages extending the original six on `feat/stage-challenges`. They add tougher corner targets, timed scoring rounds and a third defender with a repeating wave formation. Existing six-stage saves retain their medals and unlock stage seven after stage six. Select **PLAY CHALLENGES** from the home screen. Classic remains available under **LET'S PLAY**. This milestone is source-only: no analysis, tests, builds or game runs were executed for publication. The owner will validate it locally. See [challenge design and playtest notes](CHALLENGES.md).
 
 **Beat the Keeper** adds earlier, single-use Fire Shots in challenges, three named keeper patterns, seven original sound effects, a saved sound toggle and direct retries. The opening stage can now deliver a Fire Shot after two consecutive goals; Corner Artist charges after one corner. See [rules and local handoff](BEAT_THE_KEEPER.md). These source changes have not been built, run or playtested here.
 
@@ -76,10 +76,16 @@ If the owner later chooses to use it after integration, the manual workflow reso
 | 4 · Beat the Clock | Score 4 goals in 25 active seconds | The Sentinel under time pressure |
 | 5 · Double Trouble | Score 4 goals | The Gambler and two crossing defenders |
 | 6 · Captain's Finish | Score 8 points in 30 active seconds | The Gambler, two defenders and Fire corner opportunities |
+| 7 · Pressure Cooker | Score 5 goals in 26 active seconds | Faster Sweeper and two crossing defenders |
+| 8 · Needle Threader | Score 3 corner goals | The Sentinel and two offset defenders; no timer |
+| 9 · Triple Wall | Score 5 goals | The Gambler and a new three-defender wave; no timer |
+| 10 · Sudden Rush | Score 12 points in 22 active seconds | Quick crossing defenders and Fire scoring under pressure |
+| 11 · Corner Siege | Score 4 corner goals in 32 active seconds | The Sentinel and the triple wave under time pressure |
+| 12 · Champion's Gate | Score 18 points in 28 active seconds | Fastest Gambler and three defenders moving at different speeds |
 
 Every attempt starts with three chances and its own score. Clearing a stage unlocks the next; replay any unlocked stage immediately. A clear with zero, one or two misses awards three, two or one stars respectively. Only the best stars per stage are saved, under `challenge_stars_v1`; Classic best scores use their existing key and are not changed by challenges. An unfinished attempt restarts from its briefing after relaunch.
 
-Retry from results goes directly into a fresh attempt; choosing a new stage opens its briefing. Two consecutive goals charge the next shot to 2× points (one corner goal in Corner Artist). The boosted shot consumes charge; misses reset it. Fire Shots can still be saved, blocked or missed.
+Retry from results goes directly into a fresh attempt; choosing a new stage opens its briefing. Two goals without a miss charge the next shot to 2× points. Corner objectives charge only from corner goals: one in Corner Artist, two in Needle Threader and Corner Siege. The boosted shot consumes charge; misses reset it. Fire Shots can still be saved, blocked or missed.
 
 Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Opponents use fixed stage patterns; Classic's goal-based unlocks do not add extra defenders during a challenge.
 
@@ -95,7 +101,8 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Continuous motion, eased highlight shots, cached player drawings and consistent trail sampling
 - Accuracy, longest streak, shot totals and a Classic personal-best result badge
 - Optional local DevTools phase markers via `--dart-define=STRIKER_TRACE=true`
-- Six-stage challenge map, objective HUD, countdown, stage briefings and results
+- Twelve-stage challenge map, objective HUD, countdown, stage briefings and results
+- Six Champion stages with tighter targets and a third defender in spaced lanes
 - Stage-specific pitch palettes, defence patterns, unlocks, retries and saved stars
 - Three named keepers with different movement, coloured kits and briefings
 - Early challenge Fire Shots, visible charge and direct rematches

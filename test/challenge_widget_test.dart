@@ -23,7 +23,7 @@ void main() {
     await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
-    expect(find.text('Six stages.\nEarn your stars.'), findsOneWidget);
+    expect(find.text('12 stages.\nEarn your stars.'), findsOneWidget);
     await tapVisible(tester, 'PLAY STAGE 1  →');
     expect(find.text('Score 3 goals'), findsOneWidget);
     expect(find.byTooltip('Pause'), findsNothing);
@@ -47,7 +47,7 @@ void main() {
     await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
-    expect(find.text('9/18 stars collected'), findsOneWidget);
+    expect(find.text('9/36 stars collected'), findsOneWidget);
     await tapVisible(tester, 'PLAY STAGE 4  →');
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('25s'), findsOneWidget);
@@ -62,6 +62,37 @@ void main() {
     }
     expect(find.text('25s'), findsNothing);
     expect(find.text('24s'), findsOneWidget);
+  });
+
+  testWidgets('a legacy campaign save opens stage seven from the map', (tester) async {
+    await SharedPreferencesAsync().setStringList(
+        ChallengeProgress.storageKey, ['3', '3', '3', '3', '3', '3']);
+    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tapVisible(tester, 'PLAY CHALLENGES');
+    expect(find.text('18/36 stars collected'), findsOneWidget);
+    await tapVisible(tester, 'PLAY STAGE 7  →');
+    expect(find.text('Pressure Cooker'), findsOneWidget);
+    expect(find.text('Score 5 goals'), findsOneWidget);
+    await tapVisible(tester, 'START STAGE  →');
+    expect(find.text('0/5 GOALS'), findsOneWidget);
+    expect(find.byTooltip('Pause'), findsOneWidget);
+  });
+
+  testWidgets('the triple-wall stage renders its third defender on entry', (tester) async {
+    await SharedPreferencesAsync().setStringList(
+        ChallengeProgress.storageKey, List.filled(8, '3'));
+    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pump(const Duration(milliseconds: 50));
+    await tapVisible(tester, 'PLAY CHALLENGES');
+    await tapVisible(tester, 'PLAY STAGE 9  →');
+    await tapVisible(tester, 'START STAGE  →');
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(tester.takeException(), isNull);
+    expect(find.text('0/5 GOALS'), findsOneWidget);
+    expect(find.byTooltip('Pause'), findsOneWidget);
   });
 
   testWidgets('saved sound preference loads and a toggle persists for relaunch', (tester) async {

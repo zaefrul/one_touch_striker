@@ -2,7 +2,10 @@ import 'keeper_style.dart';
 
 enum StageObjective { goals, corners, points }
 
-enum DefencePattern { sweep, crossing }
+enum DefencePattern { sweep, crossing, staggered }
+
+// Append new stages after these six: saved stars are keyed by list position.
+const championStageStart = 6;
 
 /// Each stage introduces a different skill. Balance values live here so they
 /// can be tuned after device playtests without changing the match rules.
@@ -56,7 +59,7 @@ class ChallengeStage {
       objective == StageObjective.corners ? 'corner goal' : 'goal';
   String get fireRule =>
       '$fireChargeGoals $fireChargeUnit${fireChargeGoals == 1 ? '' : 's'} '
-      'in a row ${fireChargeGoals == 1 ? 'charges' : 'charge'} a Fire Shot. '
+      'without a miss ${fireChargeGoals == 1 ? 'charges' : 'charge'} a Fire Shot. '
       'Your next goal scores 2× points; a miss resets charge.';
   String get rulesLabel => timeLimit == null
       ? '3 chances · No timer'
@@ -143,7 +146,7 @@ const challengeStages = [
     name: "Captain's Finish",
     skill: 'MAKE EVERY SHOT COUNT',
     brief: 'Earn eight points against The Gambler and two defenders. Corners are worth three; a Fire corner is worth six.',
-    tip: 'Two goals charge a Fire Shot. Read the crossing defenders and aim for a corner to finish strongly.',
+    tip: 'Two goals charge a Fire Shot. Read the offset defenders and aim for a corner to finish strongly.',
     objective: StageObjective.points,
     target: 8,
     aimSpeed: 1.60,
@@ -155,6 +158,108 @@ const challengeStages = [
     timeLimit: 30,
     pitchColor: 0xff23496a,
     stripeColor: 0xff2b5576,
+  ),
+  ChallengeStage(
+    name: 'Pressure Cooker',
+    skill: 'KEEP YOUR COOL',
+    brief: 'Five goals, two crossing defenders and a faster Sweeper. Keep finding the open lane before time runs out.',
+    tip: 'Watch both lanes as the arrow returns. Take the open goal when a corner would cost too much time.',
+    objective: StageObjective.goals,
+    target: 5,
+    aimSpeed: 1.70,
+    keeperSpeed: 1.50,
+    keeperRange: 108,
+    defenders: 2,
+    defenderSpeed: 1.40,
+    pattern: DefencePattern.crossing,
+    timeLimit: 26,
+    pitchColor: 0xff70402e,
+    stripeColor: 0xff7c4b36,
+  ),
+  ChallengeStage(
+    name: 'Needle Threader',
+    skill: 'FIND THE SMALL OPENING',
+    brief: 'Land three corner goals past The Sentinel and two defenders. Only the glowing corners advance the stage.',
+    tip: 'Use the untimed round to read all three opponents. Two corner goals charge a Fire Shot for your next shot.',
+    objective: StageObjective.corners,
+    target: 3,
+    aimSpeed: 1.80,
+    keeperSpeed: 1.55,
+    keeperRange: 108,
+    keeper: KeeperStyle.sentinel,
+    defenders: 2,
+    defenderSpeed: 1.40,
+    pitchColor: 0xff433a70,
+    stripeColor: 0xff4f467e,
+  ),
+  ChallengeStage(
+    name: 'Triple Wall',
+    skill: 'READ THREE LANES',
+    brief: 'A third defender joins the pitch. Score five goals through a repeating wave of three moving lanes.',
+    tip: 'Start with the defender nearest the ball, then check the two behind. The wave repeats; there is no timer to rush you.',
+    objective: StageObjective.goals,
+    target: 5,
+    aimSpeed: 1.85,
+    keeperSpeed: 1.60,
+    keeperRange: 108,
+    keeper: KeeperStyle.gambler,
+    defenders: 3,
+    defenderSpeed: 1.40,
+    pattern: DefencePattern.staggered,
+    pitchColor: 0xff245c62,
+    stripeColor: 0xff2b6870,
+  ),
+  ChallengeStage(
+    name: 'Sudden Rush',
+    skill: 'TURN CHARGE INTO POINTS',
+    brief: 'Earn twelve points in twenty-two active seconds. Two quick crossing defenders leave little time to hesitate.',
+    tip: 'A Fire corner earns six points. Build charge with open goals, then look for the corner when the boost is ready.',
+    objective: StageObjective.points,
+    target: 12,
+    aimSpeed: 1.95,
+    keeperSpeed: 1.65,
+    keeperRange: 110,
+    defenders: 2,
+    defenderSpeed: 1.60,
+    pattern: DefencePattern.crossing,
+    timeLimit: 22,
+    pitchColor: 0xff754c22,
+    stripeColor: 0xff81592b,
+  ),
+  ChallengeStage(
+    name: 'Corner Siege',
+    skill: 'STAY PRECISE UNDER PRESSURE',
+    brief: 'Four corner goals through the triple wall. The Sentinel and the clock now test your precision together.',
+    tip: 'The three-lane wave returns. Read the nearest defender first and choose a corner during the keeper\'s opposite-side hold.',
+    objective: StageObjective.corners,
+    target: 4,
+    aimSpeed: 2.00,
+    keeperSpeed: 1.75,
+    keeperRange: 110,
+    keeper: KeeperStyle.sentinel,
+    defenders: 3,
+    defenderSpeed: 1.50,
+    pattern: DefencePattern.staggered,
+    timeLimit: 32,
+    pitchColor: 0xff613653,
+    stripeColor: 0xff704061,
+  ),
+  ChallengeStage(
+    name: "Champion's Gate",
+    skill: 'MASTER THE WHOLE PITCH',
+    brief: 'Earn eighteen points against the fastest Gambler and three defenders moving at different speeds. This is the final test.',
+    tip: 'Keep your charge alive and spend Fire Shots on corners. Five consecutive corner goals earn eighteen points; open centre goals can keep you in the run.',
+    objective: StageObjective.points,
+    target: 18,
+    aimSpeed: 2.10,
+    keeperSpeed: 1.85,
+    keeperRange: 110,
+    keeper: KeeperStyle.gambler,
+    defenders: 3,
+    defenderSpeed: 1.65,
+    timeLimit: 28,
+    pitchColor: 0xff26335d,
+    stripeColor: 0xff303f6d,
   ),
 ];
 

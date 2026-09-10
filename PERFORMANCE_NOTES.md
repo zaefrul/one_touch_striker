@@ -10,7 +10,7 @@ drawing work; they are not a measured claim that all stutter is gone.
 This update builds on challenge commit
 `d9d81b9c684df241b16ef10ad4da52106a325951`. That commit already aligned visible
 player positions with collision anchors. Both updates are on
-`feat/stage-challenges`; checking out the older `main` does not include them.
+`feat/stage-challenges`; use that branch for this version of the game.
 
 No analyzer, tests, builds or app runs were executed for this update. Added
 regression cases are for the owner's local execution. The workflow remains
@@ -108,7 +108,10 @@ capture with sound on/off. Effects preload asynchronously, use a fixed player
 per clip and disable audio-position polling; they do not create players in the
 shot callback. Preloading may still overlap a very quick start and needs device
 observation. No audio-latency or frame-time improvement has been measured here.
-Keeper artwork now caches three kits and two defenders. The Fire-meter row is
+The Champion stage expansion caches three keeper kits and three defenders before
+play; the cache size follows the stage configuration. The third defender uses
+the same drawing/collision anchor and adds one collision check per physics
+substep. Its frame cost has not been measured. The Fire-meter row is
 reserved throughout each stage to avoid resizing the pitch when it appears.
 
 ## Regression cases prepared for local execution

@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' hide TextStyle;
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
+import 'challenge_stage.dart';
 import 'match_model.dart';
 import 'keeper_style.dart';
 import 'playtest_trace.dart';
@@ -32,6 +33,10 @@ class StrikerGame extends FlameGame {
   Picture? _fieldPicture;
   int? _fieldStageIndex;
   final List<Picture> _playerPictures = [];
+  // Include Classic's two defenders and every configured challenge defender.
+  // Precache once so entering a triple-wall stage needs no new player artwork.
+  static final int _cachedDefenderCount = challengeStages.fold<int>(
+      2, (count, stage) => math.max(count, stage.defenders));
   final Map<(String, double, Color, double), TextPainter> _labelCache = {};
   final List<Paint> _trailPaints = List.generate(
     14,
@@ -82,8 +87,9 @@ class StrikerGame extends FlameGame {
   Future<void> onLoad() async {
     await super.onLoad();
     // Lay out the finite set of labels before the first playable frame.
-    for (final number in ['1', '4', '5']) {
-      _painterFor(number, 11, const Color(0xff123c33), 0);
+    _painterFor('1', 11, const Color(0xff123c33), 0);
+    for (var i = 0; i < _cachedDefenderCount; i++) {
+      _painterFor('${i + 4}', 11, const Color(0xff123c33), 0);
     }
     _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
     _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
@@ -103,7 +109,7 @@ class StrikerGame extends FlameGame {
       _drawPlayerArt(Canvas(recorder), 0, 0, Color(keeper.kitColor), '1', keeper: true);
       _playerPictures.add(recorder.endRecording());
     }
-    for (var i = 0; i < 2; i++) {
+    for (var i = 0; i < _cachedDefenderCount; i++) {
       final recorder = PictureRecorder();
       _drawPlayerArt(Canvas(recorder), 0, 0, const Color(0xffff686b), '${i + 4}');
       _playerPictures.add(recorder.endRecording());

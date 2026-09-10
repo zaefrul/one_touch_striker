@@ -9,8 +9,9 @@ Enjoyment, retention, audio latency and frame performance have not been measured
 
 | Stages | Charge requirement | Earliest boosted shot |
 | --- | --- | --- |
-| 1, 2, 4, 5, 6 | Two consecutive goals | Third shot |
+| 1, 2, 4–7, 9–10, 12 | Two consecutive goals | Third shot |
 | 3: Corner Artist | One corner goal; centre goals do not charge | Second shot |
+| 8: Needle Threader; 11: Corner Siege | Two corner goals without a miss; centre goals do not charge | Third shot |
 
 - The charging goal earns its normal points. Charge is visible below the pitch.
 - The next shot is a Fire Shot: a goal earns 2 points, a corner earns 6.
@@ -27,16 +28,18 @@ Enjoyment, retention, audio latency and frame performance have not been measured
 
 For example, three ordinary goals in First Touch score **1 + 1 + 2 = 4** and
 clear the stage. The intended corner route through Corner Artist scores
-**3 + 6 = 9**. Two ordinary goals followed by a Fire corner can meet the finale's
-eight-point objective. These are scoring rules, not playtest results.
+**3 + 6 = 9**. Two ordinary goals followed by a Fire corner can meet Captain's
+Finish's eight-point objective. Five consecutive corner goals earn
+**3 + 3 + 6 + 3 + 3 = 18** for the expanded campaign's Champion's Gate finale.
+These are scoring rules, not playtest results.
 
 ## Three opponents
 
 | Keeper | Stages | Readable behaviour |
 | --- | --- | --- |
-| The Sweeper, gold kit | 1–2 | Smooth side-to-side sweep |
-| The Sentinel, blue kit | 3–4 | Holds at each side, eases across, then holds again |
-| The Gambler, pink kit | 5–6 | Spends longer on the right, with a shorter left-side visit |
+| The Sweeper, gold kit | 1–2, 7, 10 | Smooth side-to-side sweep |
+| The Sentinel, blue kit | 3–4, 8, 11 | Holds at each side, eases across, then holds again |
+| The Gambler, pink kit | 5–6, 9, 12 | Spends longer on the right, with a shorter left-side visit |
 
 Each has a name and tip in the briefing, a label on the map/pitch, and a distinct
 kit. `keeper_style.dart` defines deterministic offsets with continuous position

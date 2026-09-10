@@ -24,9 +24,9 @@ class ChallengeMap extends StatelessWidget {
         children: [
           const _Eyebrow('BEAT THE KEEPER'),
           const SizedBox(height: 12),
-          const Text('Six stages.\nEarn your stars.',
+          Text('${challengeStages.length} stages.\nEarn your stars.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.w900, height: 1.1)),
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w900, height: 1.1)),
           const SizedBox(height: 12),
           Text('${progress.totalStars}/${challengeStages.length * 3} stars collected',
               textAlign: TextAlign.center,
@@ -46,7 +46,12 @@ class ChallengeMap extends StatelessWidget {
             ),
             const SizedBox(height: 14),
           ],
-          for (var i = 0; i < challengeStages.length; i++)
+          for (var i = 0; i < challengeStages.length; i++) ...[
+            if (i == 0 || i == championStageStart)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 14),
+                child: _Eyebrow(i == 0 ? 'THE CLIMB' : 'CHAMPION STAGES · HARD'),
+              ),
             Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: _StageCard(
@@ -57,6 +62,7 @@ class ChallengeMap extends StatelessWidget {
                 onTap: () => onSelect(i),
               ),
             ),
+          ],
           TextButton(onPressed: onBack, child: const Text('BACK TO HOME')),
         ],
       );
@@ -144,7 +150,7 @@ class StagePanel extends StatelessWidget {
           ? stage.brief
           : cleared
               ? complete
-                  ? 'All six stages conquered! You have ${progress.totalStars}/${challengeStages.length * 3} stars. Replay your favourites to earn the rest.'
+                  ? 'All ${challengeStages.length} stages conquered! You have ${progress.totalStars}/${challengeStages.length * 3} stars. Replay your favourites to earn the rest.'
                   : 'Next: ${challengeStages[model.stageIndex! + 1].name}.\n${challengeStages[model.stageIndex! + 1].brief}'
               : stage.tip,
           textAlign: TextAlign.center,

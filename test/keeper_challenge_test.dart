@@ -86,7 +86,7 @@ void main() {
     expect(match.fireReady, isFalse);
   });
 
-  test('a Fire corner buzzer shot can win the eight-point final', () {
+  test('a Fire corner buzzer shot can win the eight-point captain stage', () {
     final match = MatchModel()..prepareStage(5)..startStage();
     score(match);
     score(match);

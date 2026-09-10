@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:one_touch_striker/game/challenge_stage.dart';
 import 'package:one_touch_striker/game/match_model.dart';
@@ -144,7 +145,7 @@ void main() {
     expect(match.earnedStars, 3);
   });
 
-  test('the final stage measures points, then Classic resets stage rules', () {
+  test('stage six still measures eight points and leads into the expansion', () {
     final match = MatchModel()..prepareStage(5)..startStage();
     for (var i = 0; i < 3; i++) {
       match.finishShot(goal: true, corner: true, text: 'CORNER');
@@ -153,7 +154,7 @@ void main() {
     expect(match.goals, 3);
     expect(match.score, 12); // 3 + 3 + a 6-point Fire corner.
     expect(match.phase, MatchPhase.stageCleared);
-    expect(match.isFinalStage, isTrue);
+    expect(match.isFinalStage, isFalse);
     match.start();
     expect(match.isChallenge, isFalse);
     expect(match.isTimed, isFalse);
@@ -179,6 +180,92 @@ void main() {
     expect(restored.totalStars, 5);
   });
 
+  test('a completed six-stage save keeps its medals and unlocks stage seven', () {
+    final oldSave = ['3', '2', '1', '3', '2', '3'];
+    final progress = ChallengeProgress()..mergeSaved(oldSave);
+    expect(progress.encode().take(6), oldSave);
+    expect(progress.encode().skip(6), everyElement('0'));
+    expect(progress.totalStars, 14);
+    expect(progress.completed, isFalse);
+    expect(progress.nextStageIndex, 6);
+    expect(progress.isUnlocked(6), isTrue);
+    expect(progress.isUnlocked(7), isFalse);
+    expect(progress.recordClear(7, 3), isFalse);
+    expect(progress.recordClear(0, 1), isFalse);
+
+    progress.recordClear(6, 2);
+    final restored = ChallengeProgress()..mergeSaved(progress.encode());
+    expect(restored.encode().take(6), oldSave);
+    expect(restored.totalStars, 16);
+    expect(restored.nextStageIndex, 7);
+  });
+
+  test('the third defender intercepts a ball at its visible model anchor', () {
+    final match = MatchModel()..prepareStage(8)..startStage();
+    expect(match.defenderCount, 3);
+    // Bring the nearest defender to the centre of the launch lane. The two
+    // farther rows cannot cause this block because their Y positions differ.
+    match.clock = (2 * math.pi / 3) / match.stage!.defenderSpeed;
+    expect(match.defenderX(2), closeTo(200, 1e-8));
+    expect(match.shoot(), isTrue);
+    match.ballY = match.defenderY(2) + .1;
+    match.update(.001);
+    expect(match.phase, MatchPhase.result);
+    expect(match.message, 'BLOCKED!');
+    expect(match.misses, 1);
+    expect(match.goals, 0);
+  });
+
+  test('new clears unlock in sequence and only stage twelve ends the campaign', () {
+    final progress = ChallengeProgress()
+      ..mergeSaved(['3', '3', '3', '3', '3', '3']);
+    final match = MatchModel();
+    for (var index = 6; index < challengeStages.length; index++) {
+      expect(progress.nextStageIndex, index);
+      expect(progress.completed, isFalse);
+      match.prepareStage(index);
+      match.startStage();
+      // Inject resolved corners to exercise objective/Fire scoring and stage
+      // transitions. Physical shot difficulty is left to device playtesting.
+      for (var shot = 0; shot < 20 && match.phase == MatchPhase.aiming; shot++) {
+        expect(match.shoot(), isTrue);
+        match.finishShot(goal: true, corner: true, text: 'CORNER');
+        settleShot(match);
+      }
+      expect(match.phase, MatchPhase.stageCleared);
+      expect(match.isFinalStage, index == challengeStages.length - 1);
+      expect(progress.recordClear(index, match.earnedStars), isTrue);
+    }
+    expect(progress.completed, isTrue);
+    expect(progress.totalStars, 36);
+    expect(match.score, 18); // Five corners: 3 + 3 + 6 + 3 + 3.
+  });
+
+  test('the new final allows a winning Fire corner at the buzzer and a retry', () {
+    final match = MatchModel()..prepareStage(11)..startStage();
+    match.score = 12;
+    match.fireCharge = 2;
+    match.secondsRemaining = .001;
+    expect(match.shoot(), isTrue);
+    match.shotTargetX = match.keeperX < 200 ? 310 : 90;
+    match.ballY = MatchModel.goalY + 10;
+    match.update(.1, cinematic: true);
+    settleShot(match);
+    expect(match.secondsRemaining, 0);
+    expect(match.score, 18);
+    expect(match.lastPoints, 6);
+    expect(match.phase, MatchPhase.stageCleared);
+    expect(match.isFinalStage, isTrue);
+    match.retryStage();
+    expect(match.phase, MatchPhase.aiming);
+    expect(match.stageIndex, 11);
+    expect(match.secondsRemaining, 28);
+    expect(match.lives, 3);
+    expect(match.score, 0);
+    expect(match.fireCharge, 0);
+    expect(match.defenderCount, 3);
+  });
+
   test('invalid saves cannot skip locks and all clears finish the campaign', () {
     final progress = ChallengeProgress()..mergeSaved(['3', 'bad', '3']);
     expect(progress.unlockedCount, 2);
@@ -187,8 +274,8 @@ void main() {
       progress.recordClear(i, 3);
     }
     expect(progress.completed, isTrue);
-    expect(progress.totalStars, 18);
-    expect(progress.unlockedCount, 6);
-    expect(progress.isUnlocked(6), isFalse);
+    expect(progress.totalStars, challengeStages.length * 3);
+    expect(progress.unlockedCount, challengeStages.length);
+    expect(progress.isUnlocked(challengeStages.length), isFalse);
   });
 }

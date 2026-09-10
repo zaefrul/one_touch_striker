@@ -118,9 +118,17 @@ class MatchModel {
     return 200 + (stage?.keeperRange ?? 100) * keeperStyle.offset(_keeperAngle);
   }
   double get keeperY => 126;
-  double defenderY(int index) => 278.0 + index * 108;
+  // Three rows stay well ahead of the launch point so the nearest defender
+  // leaves room to read a lane. Earlier stages retain their original layout.
+  double defenderY(int index) =>
+      defenderCount >= 3 ? 250.0 + index * 85 : 278.0 + index * 108;
   double defenderX(int index) {
     final current = stage;
+    if (current != null && current.pattern == DefencePattern.staggered) {
+      return 200 +
+          120 * math.sin(clock * current.defenderSpeed +
+              index * 2 * math.pi / current.defenders);
+    }
     if (current != null && current.pattern == DefencePattern.crossing) {
       return 200 +
           120 * math.sin(clock * current.defenderSpeed + index * math.pi);
