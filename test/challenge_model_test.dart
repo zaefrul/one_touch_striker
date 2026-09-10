@@ -151,7 +151,7 @@ void main() {
       settleShot(match);
     }
     expect(match.goals, 3);
-    expect(match.score, 9);
+    expect(match.score, 12); // 3 + 3 + a 6-point Fire corner.
     expect(match.phase, MatchPhase.stageCleared);
     expect(match.isFinalStage, isTrue);
     match.start();

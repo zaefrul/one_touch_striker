@@ -22,7 +22,7 @@ class ChallengeMap extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _Eyebrow('THE CHALLENGE'),
+          const _Eyebrow('BEAT THE KEEPER'),
           const SizedBox(height: 12),
           const Text('Six stages.\nEarn your stars.',
               textAlign: TextAlign.center,
@@ -87,6 +87,9 @@ class StagePanel extends StatelessWidget {
     final cleared = model.phase == MatchPhase.stageCleared;
     final complete = cleared && model.isFinalStage;
     final accent = Theme.of(context).colorScheme.primary;
+    final rematchTarget = progress.starsFor(model.stageIndex!) < 3
+        ? 'Rematch target: clear with no misses for 3 stars.'
+        : 'Rematch target: another perfect clear.';
     return Column(mainAxisSize: MainAxisSize.min, children: [
       _Eyebrow(intro
           ? 'STAGE ${model.level} / ${challengeStages.length} · ${stage.skill}'
@@ -98,6 +101,17 @@ class StagePanel extends StatelessWidget {
           textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, height: 1.05)),
       const SizedBox(height: 18),
+      if (intro) ...[
+        Text('VS ${stage.keeper.title.toUpperCase()}',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Color(stage.keeper.kitColor),
+                fontWeight: FontWeight.w900, letterSpacing: 1)),
+        const SizedBox(height: 8),
+        Text(stage.keeper.hint,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)),
+        const SizedBox(height: 18),
+      ],
       if (cleared) ...[
         StageStars(model.earnedStars, size: 44),
         const SizedBox(height: 12),
@@ -137,14 +151,26 @@ class StagePanel extends StatelessWidget {
           style: const TextStyle(color: Colors.white70, height: 1.6, fontSize: 14)),
       const SizedBox(height: 12),
       if (intro)
-        Text(stage.timeLimit == null
-            ? 'No rush. Every attempt starts with three chances.'
-            : 'The clock runs only while aiming or shooting. Pausing freezes it; a shot released before zero can finish.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.5))
+        Column(children: [
+          Text(stage.fireRule,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xffffc857), fontSize: 12, height: 1.5)),
+          const SizedBox(height: 10),
+          Text(stage.timeLimit == null
+              ? 'No rush. Every attempt starts with three chances.'
+              : 'The clock runs only while aiming or shooting. Pausing freezes it; a shot released before zero can finish.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 12, height: 1.5)),
+        ])
       else
         RunSummary(model: model),
       const SizedBox(height: 22),
+      if (!intro && !cleared) ...[
+        Text(rematchTarget,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: accent, fontSize: 12, height: 1.4)),
+        const SizedBox(height: 10),
+      ],
       SizedBox(
         width: double.infinity,
         child: FilledButton(
@@ -160,9 +186,14 @@ class StagePanel extends StatelessWidget {
           ),
         ),
       ),
-      if (cleared)
+      if (cleared) ...[
+        const SizedBox(height: 14),
+        Text(rematchTarget,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: accent, fontSize: 12, height: 1.4)),
         TextButton(onPressed: onRetry,
             child: Text(model.earnedStars < 3 ? 'RETRY FOR THREE STARS' : 'PLAY THIS STAGE AGAIN')),
+      ],
       TextButton(onPressed: onStages, child: const Text('STAGE SELECT')),
       if (intro || (cleared && model.earnedStars < 3))
         const Text('Stars: 0 misses = 3 · 1 miss = 2 · 2 misses = 1',
@@ -222,6 +253,10 @@ class _StageCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text('${stage.objectiveLabel}${stage.timeLimit == null ? '' : ' · ${stage.timeLimit}s'}',
                       style: const TextStyle(fontSize: 12, color: Colors.white60)),
+                  const SizedBox(height: 3),
+                  Text('vs ${stage.keeper.title}',
+                      style: TextStyle(fontSize: 11,
+                          color: unlocked ? Color(stage.keeper.kitColor) : Colors.white38)),
                   const SizedBox(height: 6),
                   StageStars(stars, size: 17),
                 ])),

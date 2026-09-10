@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:one_touch_striker/game/challenge_stage.dart';
 import 'package:one_touch_striker/main.dart';
+import 'package:one_touch_striker/game/striker_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shared_preferences_platform_interface/in_memory_shared_preferences_async.dart';
 import 'package:shared_preferences_platform_interface/shared_preferences_async_platform_interface.dart';
@@ -19,7 +20,7 @@ void main() {
   });
 
   testWidgets('stage briefing, end and retry stay in the same challenge', (tester) async {
-    await tester.pumpWidget(const StrikerApp());
+    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     expect(find.text('Six stages.\nEarn your stars.'), findsOneWidget);
@@ -34,15 +35,16 @@ void main() {
     expect(find.text('RETRY STAGE  ↻'), findsOneWidget);
     expect(find.text('NEXT STAGE  →'), findsNothing);
     await tapVisible(tester, 'RETRY STAGE  ↻');
-    expect(find.text('First Touch'), findsOneWidget);
-    expect(find.text('START STAGE  →'), findsOneWidget);
+    expect(find.text('START STAGE  →'), findsNothing);
+    expect(find.byTooltip('Pause'), findsOneWidget);
     expect(find.text('0/3 GOALS'), findsOneWidget);
+    expect(find.text('0/2 GOALS TO FIRE'), findsOneWidget);
   });
 
   testWidgets('saved stars unlock the timed stage and pause freezes its clock', (tester) async {
     await SharedPreferencesAsync().setStringList(
         ChallengeProgress.storageKey, ['3', '3', '3', '0', '0', '0']);
-    await tester.pumpWidget(const StrikerApp());
+    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     expect(find.text('9/18 stars collected'), findsOneWidget);
@@ -60,5 +62,17 @@ void main() {
     }
     expect(find.text('25s'), findsNothing);
     expect(find.text('24s'), findsOneWidget);
+  });
+
+  testWidgets('saved sound preference loads and a toggle persists for relaunch', (tester) async {
+    final prefs = SharedPreferencesAsync();
+    await prefs.setBool('sound', false);
+    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pump(const Duration(milliseconds: 50));
+    expect(find.byTooltip('Turn sound on'), findsOneWidget);
+    await tester.tap(find.byTooltip('Turn sound on'));
+    await tester.pump();
+    expect(find.byTooltip('Turn sound off'), findsOneWidget);
+    expect(await prefs.getBool('sound'), isTrue);
   });
 }

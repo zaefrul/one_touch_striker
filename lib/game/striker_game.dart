@@ -3,6 +3,7 @@ import 'dart:ui' hide TextStyle;
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'match_model.dart';
+import 'keeper_style.dart';
 import 'playtest_trace.dart';
 import 'shot_trail.dart';
 
@@ -65,6 +66,7 @@ class StrikerGame extends FlameGame {
     ..strokeWidth = 3;
   final Paint _ballShadowPaint = Paint()..color = const Color(0x55000000);
   final Paint _ballPaint = Paint()..color = const Color(0xfff8faed);
+  final Paint _fireBallPaint = Paint()..color = const Color(0x55ffc857);
   final Paint _ballPatchPaint = Paint()..color = const Color(0xff233e37);
   final Paint _goalFlashPaint = Paint();
   final Path _aimPath = Path();
@@ -85,6 +87,7 @@ class StrikerGame extends FlameGame {
     }
     _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
     _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
+    _painterFor('FIRE SHOT', 13, const Color(0xffd9ff6a), 3);
     _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
     _preparePlayers();
     _prepareField();
@@ -95,11 +98,14 @@ class StrikerGame extends FlameGame {
     if (_playerPictures.isNotEmpty) {
       return;
     }
-    for (var i = 0; i < 3; i++) {
+    for (final keeper in KeeperStyle.values) {
       final recorder = PictureRecorder();
-      _drawPlayerArt(Canvas(recorder), 0, 0,
-          i == 0 ? const Color(0xffffc857) : const Color(0xffff686b),
-          i == 0 ? '1' : '${i + 3}', keeper: i == 0);
+      _drawPlayerArt(Canvas(recorder), 0, 0, Color(keeper.kitColor), '1', keeper: true);
+      _playerPictures.add(recorder.endRecording());
+    }
+    for (var i = 0; i < 2; i++) {
+      final recorder = PictureRecorder();
+      _drawPlayerArt(Canvas(recorder), 0, 0, const Color(0xffff686b), '${i + 4}');
       _playerPictures.add(recorder.endRecording());
     }
   }
@@ -115,7 +121,9 @@ class StrikerGame extends FlameGame {
     final canvas = Canvas(recorder);
     _pitch(canvas);
     _goal(canvas);
-    _label(canvas, 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
+    _label(canvas, model.isChallenge
+        ? 'VS ${model.keeperStyle.title.toUpperCase()}'
+        : 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
         const Color(0xff75b3a1), spacing: 2);
     _fieldPicture = recorder.endRecording();
   }
@@ -146,7 +154,7 @@ class StrikerGame extends FlameGame {
   }
 
   void prepareStage(int index) {
-    trace.event('stage.prepare-or-retry', {'stage': index + 1});
+    trace.event('stage.prepare', {'stage': index + 1});
     model.prepareStage(index);
     _resetPresentation();
   }
@@ -154,6 +162,14 @@ class StrikerGame extends FlameGame {
   void startStage() {
     trace.event('stage.start');
     model.startStage();
+    _resetPresentation();
+  }
+
+  void retryStage() {
+    if (model.phase != MatchPhase.finished &&
+        model.phase != MatchPhase.stageCleared) return;
+    trace.event('stage.retry', {'stage': model.level});
+    model.retryStage();
     _resetPresentation();
   }
 
@@ -278,11 +294,11 @@ class StrikerGame extends FlameGame {
     canvas.drawPicture(_fieldPicture!);
     _stakes(canvas);
     for (var i = 0; i < model.defenderCount; i++) {
-      _player(canvas, model.defenderX(i), model.defenderY(i), i + 1);
+      _player(canvas, model.defenderX(i), model.defenderY(i), KeeperStyle.values.length + i);
     }
     // Render at the same anchors used by collision detection. Translating a
     // player toward the shot only in render made visible gaps misleading.
-    _player(canvas, model.keeperX, model.keeperY, 0);
+    _player(canvas, model.keeperX, model.keeperY, model.keeperStyle.index);
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
       _aim(canvas);
     }
@@ -310,7 +326,8 @@ class StrikerGame extends FlameGame {
       final pulse = .16 + .1 * math.sin(model.clock * 6);
       _fireBorderPaint.color = Color.fromRGBO(217, 255, 106, pulse);
       c.drawRRect(_pitchBorder, _fireBorderPaint);
-      _label(c, 'ON FIRE', 200, 16, 13, const Color(0xffd9ff6a), spacing: 3);
+      _label(c, model.isChallenge ? 'FIRE SHOT' : 'ON FIRE',
+          200, 16, 13, const Color(0xffd9ff6a), spacing: 3);
     } else if (model.lastChance) {
       c.drawRRect(_pitchBorder, _lastChancePaint);
       _label(c, 'LAST CHANCE', 200, 16, 12, const Color(0xffff777a), spacing: 2);
@@ -467,6 +484,10 @@ class StrikerGame extends FlameGame {
     c.save();
     c.translate(model.ballX, model.ballY);
     c.scale(squashX, squashY);
+    if ((model.phase == MatchPhase.aiming && model.fireReady) ||
+        (model.phase == MatchPhase.flying && model.shotIsFire)) {
+      c.drawCircle(Offset.zero, 13, _fireBallPaint);
+    }
     c.drawOval(const Rect.fromLTWH(-8, 2.5, 20, 9), _ballShadowPaint);
     c.drawCircle(Offset.zero, 8, _ballPaint);
     c.rotate(model.ballAngle);
@@ -490,19 +511,20 @@ class StrikerGame extends FlameGame {
   }
 
   void _celebrate(Canvas c) {
-    final duration = model.lastWasCorner ? 1.25 : .85;
+    final duration = model.goalFeedbackDuration;
+    final highlight = model.lastWasCorner || model.lastWasFire;
     final t = (duration - model.resultTime).clamp(0.0, duration);
-    if (model.lastWasCorner && t < .2) {
+    if (highlight && t < .2) {
       _goalFlashPaint.color = Color.fromRGBO(255, 255, 255, .35 * (1 - t / .2));
       c.drawRect(const Rect.fromLTWH(60, 51, 280, 55), _goalFlashPaint);
     }
-    final count = model.lastWasCorner ? 40 : 24;
-    final spread = model.lastWasCorner ? 1.35 : 1.0;
+    final count = highlight ? 40 : 24;
+    final spread = highlight ? 1.35 : 1.0;
     for (var i = 0; i < count; i++) {
       final velocity = _confettiVelocities[i];
       final p = Offset(model.ballX + velocity.dx * t * spread,
           98 + velocity.dy * t * spread + t * t * 80);
-      c.drawCircle(p, model.lastWasCorner ? 3.2 : 2.5, _confettiPaints[i % 3]);
+      c.drawCircle(p, highlight ? 3.2 : 2.5, _confettiPaints[i % 3]);
     }
   }
 

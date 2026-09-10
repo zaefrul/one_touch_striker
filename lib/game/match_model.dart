@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'challenge_stage.dart';
+import 'keeper_style.dart';
 
 enum MatchPhase {
   ready,
@@ -51,10 +52,17 @@ class MatchModel {
   double _keeperAngle = .8;
   double _motionScale = 1;
   double ballAngle = 0;
+  int fireCharge = 0;
+  bool shotIsFire = false;
+  bool lastWasFire = false;
+  bool justChargedFire = false;
 
   int get lives => 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
-  int get multiplier => streak >= 5 ? 2 : 1;
+  int get multiplier => isChallenge ? (fireReady ? 2 : 1) : (streak >= 5 ? 2 : 1);
+  bool get fireReady => isChallenge && fireCharge >= stage!.fireChargeGoals;
+  KeeperStyle get keeperStyle => stage?.keeper ?? KeeperStyle.sweeper;
+  double get goalFeedbackDuration => lastWasCorner || lastWasFire ? 1.25 : .85;
   int get defenderCount =>
       stage?.defenders ?? (goals >= 9 ? 2 : (goals >= 3 ? 1 : 0));
   ChallengeStage? get stage =>
@@ -81,7 +89,9 @@ class MatchModel {
   int get resolvedShots => goals + misses;
   double get motionScale => _motionScale;
   bool get showTapCue => firstAim && phase == MatchPhase.aiming;
-  bool get onFire => multiplier == 2;
+  bool get onFire => isChallenge
+      ? (phase == MatchPhase.flying ? shotIsFire : fireReady)
+      : multiplier == 2;
   bool get lastChance =>
       lives == 1 &&
       (phase == MatchPhase.aiming || phase == MatchPhase.flying);
@@ -105,10 +115,7 @@ class MatchModel {
       stage?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
   double get aimX => 200 + 172 * math.sin(_aimAngle);
   double get keeperX {
-    final current = stage;
-    final tempo = (current?.keeperTempo ?? 0) * math.sin(clock * 2);
-    return 200 + (current?.keeperRange ?? 100) *
-        math.sin(_keeperAngle + tempo);
+    return 200 + (stage?.keeperRange ?? 100) * keeperStyle.offset(_keeperAngle);
   }
   double get keeperY => 126;
   double defenderY(int index) => 278.0 + index * 108;
@@ -142,6 +149,16 @@ class MatchModel {
     }
   }
 
+  void retryStage() {
+    final index = stageIndex;
+    if (index == null ||
+        (phase != MatchPhase.finished && phase != MatchPhase.stageCleared)) {
+      return;
+    }
+    prepareStage(index);
+    startStage();
+  }
+
   void returnToMenu() {
     stageIndex = null;
     _resetRun();
@@ -162,6 +179,8 @@ class MatchModel {
     message = '';
     unlockNote = '';
     lastWasGoal = lastWasCorner = lastWasPost = false;
+    fireCharge = 0;
+    shotIsFire = lastWasFire = justChargedFire = false;
     firstAim = true;
     resetBall();
   }
@@ -183,6 +202,7 @@ class MatchModel {
     ballX = ballStartX;
     ballY = ballStartY;
     ballAngle = 0;
+    shotIsFire = false;
   }
 
   bool shoot() {
@@ -190,6 +210,7 @@ class MatchModel {
       return false;
     }
     shotTargetX = aimX;
+    shotIsFire = fireReady;
     firstAim = false;
     phase = MatchPhase.flying;
     return true;
@@ -227,7 +248,7 @@ class MatchModel {
     }
     var target = 1.0;
     if (phase == MatchPhase.flying &&
-        (shotHeadsToCornerGoal || shotHeadsToPost)) {
+        (shotIsFire || shotHeadsToCornerGoal || shotHeadsToPost)) {
       final approach = ((goalY + 140 - ballY) / 90).clamp(0.0, 1.0);
       final eased = approach * approach * (3 - 2 * approach);
       target = 1.0 - .62 * eased;
@@ -340,10 +361,14 @@ class MatchModel {
     lastWasGoal = goal;
     lastWasCorner = corner;
     lastWasPost = post;
+    // Charge cannot change during flight. Resolve the boost before updating
+    // charge so the goal that arms a Fire Shot still earns normal points.
+    lastWasFire = fireReady;
+    justChargedFire = false;
     lastPoints = 0;
     unlockNote = '';
     if (goal) {
-      // The fifth goal activates the multiplier for subsequent shots.
+      // Classic's fifth goal and a challenge's charging goal arm NEXT shots.
       lastPoints = (corner ? 3 : 1) * multiplier;
       score += lastPoints;
       goals++;
@@ -357,23 +382,34 @@ class MatchModel {
       } else if (!isChallenge && goals == 9) {
         unlockNote = 'SECOND MARKER';
       }
-      if (streak == 5) {
+      if (!isChallenge && streak == 5) {
         unlockNote = '2× ON · NEXT SHOTS';
       }
       if (isChallenge) {
+        if (lastWasFire) {
+          fireCharge = 0;
+        } else if (stage!.objective != StageObjective.corners || corner) {
+          fireCharge++;
+          justChargedFire = fireReady && !objectiveMet && !timeExpired;
+        }
         unlockNote = objectiveMet
             ? 'STAGE CLEAR!'
-            : stage!.objective == StageObjective.corners && !corner
-                ? 'CORNERS ADVANCE THE STAGE'
-                : '$objectiveProgress/${stage!.target} ${stage!.unit.toUpperCase()}';
+            : justChargedFire
+                ? 'FIRE SHOT READY · NEXT SHOT 2×'
+                : stage!.objective == StageObjective.corners && !corner
+                    ? 'CORNERS ADVANCE THE STAGE'
+                    : '$objectiveProgress/${stage!.target} ${stage!.unit.toUpperCase()}';
       }
     } else {
       misses++;
       streak = 0;
+      fireCharge = 0;
     }
-    message = text;
+    message = goal && lastWasFire
+        ? (corner ? 'FIRE CORNER!' : 'FIRE GOAL!')
+        : text;
     resultSerial++;
-    resultTime = goal ? (corner ? 1.25 : .85) : (post ? 1.15 : 1.0);
+    resultTime = goal ? goalFeedbackDuration : (post ? 1.15 : 1.0);
     phase = MatchPhase.result;
   }
 }

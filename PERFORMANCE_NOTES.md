@@ -25,7 +25,7 @@ manual-only; no workflow is dispatched by this publication.
 | Ball rotation used `clock * spin`, with spin reset to zero after flight | Accumulate rotation during flight and retain its final angle in feedback | No rotation snap on impact |
 | Kick squash began at maximum stretch | Use a sine-shaped pulse from normal size, through the squash, back to normal | A softer kick impulse |
 | Trail sampling dropped each frame's leftover time and shifted a list | Preserve remainder, interpolate samples every 12 ms and use a fixed ring buffer | Consistent trail duration across refresh rates |
-| Player artwork and several Paint/Path objects were recreated every render | Cache three player drawings; reuse paints, ball/arrow paths and confetti velocities | Less repeated Dart drawing work; inspect actual frame times |
+| Player artwork and several Paint/Path objects were recreated every render | Cache player drawings; reuse paints, ball/arrow paths and confetti velocities | Less repeated Dart drawing work; inspect actual frame times |
 | The app recreated GameWidget for HUD changes and sent overlapping notifications | Retain GameWidget and send one UI notification per event | Inspect first-shot and feedback spikes |
 | Haptic dispatch preceded target locking | Lock the shot first, then issue haptics | Arrow timing matches the tap before platform feedback work |
 
@@ -34,7 +34,8 @@ remain the existing approximations. Cached vector commands still require
 rasterization; caching does not guarantee a specific FPS.
 
 Challenge clocks still count active time before cinematic scaling. Goal/miss
-feedback keeps its original duration, and pausing/backgrounding freezes the
+feedback keeps its normal duration (Fire goals use the existing 1.25-second
+highlight duration), and pausing/backgrounding freezes the
 attempt. The existing 100 ms frame-gap cap remains; it is not an FPS guarantee.
 
 ## Results and records
@@ -72,7 +73,7 @@ pressing Play. The optional `Striker:` spans/markers identify:
 | `shot.first` / `shot.repeat` | First versus subsequent flight |
 | `feedback.goal` / `feedback.miss` | Goal, save, block or miss feedback |
 | `classic.start-or-restart` | Starting/restarting Classic |
-| `stage.prepare-or-retry` / `stage.start` | Stage changes and retries |
+| `stage.prepare` / `stage.start` / `stage.retry` | Briefings, starting and direct retries |
 | `paused` / `results` / `stage.cleared` | Pause and end panels |
 | `storage.load.*` / `save.best_score.*` | Loading and best-score write boundaries |
 | `haptic.tap` / `haptic.result` | Platform haptic dispatch |
@@ -101,6 +102,14 @@ Fill these from observation; no values have been measured here:
 Include phone model, OS, build mode, refresh setting, commit and vibration setting
 when sharing the trace. Physical Android APK install/run remains unconfirmed from
 the feedback received so far.
+
+The Beat the Keeper update also adds sound. Repeat the first-shot and goal
+capture with sound on/off. Effects preload asynchronously, use a fixed player
+per clip and disable audio-position polling; they do not create players in the
+shot callback. Preloading may still overlap a very quick start and needs device
+observation. No audio-latency or frame-time improvement has been measured here.
+Keeper artwork now caches three kits and two defenders. The Fire-meter row is
+reserved throughout each stage to avoid resizing the pitch when it appears.
 
 ## Regression cases prepared for local execution
 

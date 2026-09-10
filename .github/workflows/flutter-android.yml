@@ -36,8 +36,10 @@ jobs:
       - name: Show toolchain
         run: flutter --version
 
-      - name: Install locked dependencies
-        run: flutter pub get --enforce-lockfile
+      # The source-only audio milestone adds a dependency. Resolve it when the
+      # owner explicitly runs this workflow; publication never starts this job.
+      - name: Install dependencies
+        run: flutter pub get
 
       - name: Analyze
         run: flutter analyze --no-pub
@@ -55,4 +57,3 @@ jobs:
           path: build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 7
-

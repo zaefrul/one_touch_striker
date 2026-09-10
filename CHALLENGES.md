@@ -10,23 +10,30 @@ has been validated: these are initial balance values for the owner's playtest.
 Home → PLAY CHALLENGES → stage map → briefing → START STAGE → play → clear or retry.
 Only cleared stages unlock the next one. All unlocked stages remain replayable.
 Three misses end the current attempt; timed stages also end when the clock
-expires. Retry returns to that stage's briefing with three fresh chances, a full
-timer and zero score. Clearing stage six shows the campaign finish and returns
+expires. Retry now starts that stage immediately with three fresh chances, a full
+timer, empty Fire charge and zero score. New stages still show a briefing.
+Clearing stage six shows the campaign finish and returns
 the player to the map to improve their stars.
 
 | Stage | Skill | Target | Opposition | Time |
 | --- | --- | --- | --- | --- |
-| First Touch | Timing | 3 goals | Slower keeper | Unlimited |
-| Moving Wall | Reading lanes | 3 goals | Keeper + 1 sweeping defender | Unlimited |
-| Corner Artist | Precision | 2 corner goals | Keeper; only the glowing corners advance progress | Unlimited |
-| Beat the Clock | Quick decisions | 4 goals | Faster keeper | 25 active seconds |
-| Double Trouble | Reading two lanes | 4 goals | Keeper + 2 defenders moving in opposite directions | Unlimited |
-| Captain's Finish | Combining skills | 8 points | Changing-pace keeper + 2 offset defenders | 30 active seconds |
+| First Touch | Timing | 3 goals | The Sweeper | Unlimited |
+| Moving Wall | Reading lanes | 3 goals | The Sweeper + 1 defender | Unlimited |
+| Corner Artist | Precision | 2 corner goals | The Sentinel; only glowing corners advance progress | Unlimited |
+| Beat the Clock | Quick decisions | 4 goals | The Sentinel | 25 active seconds |
+| Double Trouble | Reading two lanes | 4 goals | The Gambler + 2 crossing defenders | Unlimited |
+| Captain's Finish | Combining skills | 8 points | The Gambler + 2 offset defenders | 30 active seconds |
 
 The deliberate reset to a keeper-only pitch in stage three makes corner timing
 the new skill. Stage four adds urgency before stage five introduces the second
 defender. The finale combines those skills and rewards three-point corner shots.
 Each stage has its own name and cached pitch palette.
+
+The [Beat the Keeper update](BEAT_THE_KEEPER.md) adds named profiles, a visible
+Fire meter, sound and instant rematches. Two consecutive goals charge one Fire
+Shot; Corner Artist requires one corner goal. The charging goal pays normal
+points. A Fire goal pays double (2 or 6), then charge resets. Any miss also resets
+charge. Fire Shots use the same trajectory and collisions and can fail normally.
 
 ## Rewards and continuity
 
@@ -88,6 +95,6 @@ to do, how often you had to wait, and whether you wanted another attempt. Record
 the device and whether it was a simulator, plus any Android APK build/run result.
 
 Tune `challengeStages` in `lib/game/challenge_stage.dart`: targets, aim speed,
-keeper range/speed/tempo, defender speed/pattern and time limits are centralized.
+keeper style/range/speed, Fire charge, defender speed/pattern and time limits are centralized.
 Prioritize unreadable failures first, excessive waiting second, and stage target
 or timer adjustments third, based on the actual notes.

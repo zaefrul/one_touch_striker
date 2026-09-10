@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'game/challenge_stage.dart';
 import 'game/match_model.dart';
+import 'game/striker_audio.dart';
 import 'game/striker_game.dart';
 import 'ui/challenge_panel.dart';
 import 'ui/run_summary.dart';
@@ -24,7 +25,8 @@ Future<void> main() async {
 }
 
 class StrikerApp extends StatelessWidget {
-  const StrikerApp({super.key});
+  const StrikerApp({super.key, this.audio});
+  final StrikerAudio? audio;
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'One-Touch Striker',
@@ -36,12 +38,13 @@ class StrikerApp extends StatelessWidget {
           fontFamily: 'sans-serif',
           useMaterial3: true,
         ),
-        home: const MatchScreen(),
+        home: MatchScreen(audio: audio),
       );
 }
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key});
+  const MatchScreen({super.key, this.audio});
+  final StrikerAudio? audio;
   @override
   State<MatchScreen> createState() => _MatchScreenState();
 }
@@ -51,9 +54,13 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final prefs = SharedPreferencesAsync();
   final progress = ChallengeProgress();
   late final StrikerGame game;
+  late final StrikerAudio audio;
   late final Widget _pitch;
   int best = 0;
   bool haptics = true;
+  bool sound = true;
+  bool _soundChanged = false;
+  bool _foreground = true;
   bool storageAvailable = true;
   bool _progressLoaded = false;
   bool _showStages = false;
@@ -67,6 +74,10 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     game = StrikerGame(model, onChanged: _refresh, onShotResult: _result);
+    audio = widget.audio ?? StrikerAudio();
+    // Honour saved mute before allowing a cue; preload without delaying menus.
+    audio.enabled = false;
+    unawaited(audio.preload());
     // GameWidget already supplies a repaint boundary. Retain this widget too,
     // so HUD and result changes do not rebuild its subtree.
     _pitch = GameWidget(game: game);
@@ -94,10 +105,12 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         _saveInt('best_score', best);
       }
       final feedback = await prefs.getBool('haptics') ?? true;
+      final savedSound = await prefs.getBool('sound') ?? true;
       final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
       if (mounted) {
         setState(() {
           haptics = feedback;
+          if (!_soundChanged) sound = savedSound;
           progress.mergeSaved(savedStars);
         });
       }
@@ -108,6 +121,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     } finally {
       game.trace.event('storage.load.end');
       if (mounted) {
+        audio.enabled = sound;
         setState(() => _progressLoaded = true);
       }
     }
@@ -138,6 +152,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _refresh() {
     if (mounted) {
+      audio.suspended = !_foreground || game.matchPaused;
       if (model.phase == MatchPhase.stageCleared &&
           progress.recordClear(model.stageIndex!, model.earnedStars)) {
         final savedStars = progress.encode();
@@ -149,6 +164,14 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _result() {
+    audio.play(model.lastWasGoal
+        ? (model.lastWasFire ? ShotSound.fireGoal : ShotSound.net)
+        : model.lastWasPost
+            ? ShotSound.post
+            : model.message == 'JUST WIDE!'
+                ? ShotSound.wide
+                : ShotSound.save);
+    if (model.justChargedFire) audio.play(ShotSound.charge);
     // Stage attempts have their own rewards; keep the Classic record comparable.
     if (!model.isChallenge && model.score > best) {
       best = model.score;
@@ -159,7 +182,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
     if (haptics) {
       game.trace.event('haptic.result');
-      unawaited(model.lastWasCorner
+      unawaited(model.lastWasCorner || (model.lastWasFire && model.lastWasGoal)
           ? HapticFeedback.heavyImpact()
           : HapticFeedback.mediumImpact());
     }
@@ -171,6 +194,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     if (!game.shoot()) {
       return;
     }
+    audio.play(ShotSound.kick);
     if (haptics) {
       game.trace.event('haptic.tap');
       unawaited(HapticFeedback.mediumImpact());
@@ -182,6 +206,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       model.score > _bestBeforeRun;
 
   void _startClassic() {
+    audio.stopAll();
     _bestBeforeRun = best;
     _classicRunActive = true;
     game.startMatch();
@@ -191,7 +216,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     if (!model.isPlaying) {
       return;
     }
-    setState(() => game.matchPaused = !game.matchPaused);
+    game.matchPaused = !game.matchPaused;
+    _refresh();
   }
 
   void _selectStage(int index) {
@@ -200,16 +226,29 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
     _showStages = false;
     _classicRunActive = false;
+    audio.stopAll();
     game.prepareStage(index);
   }
 
+  void _retryStage() {
+    audio.stopAll();
+    game.retryStage();
+  }
+
+  void _endRun() {
+    audio.stopAll();
+    game.endRun();
+  }
+
   void _stageMap() {
+    audio.stopAll();
     _showStages = true;
     _classicRunActive = false;
     game.returnToMenu();
   }
 
   void _home() {
+    audio.stopAll();
     _showStages = false;
     _classicRunActive = false;
     game.returnToMenu();
@@ -217,11 +256,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.resumed &&
-        model.isPlaying) {
+    _foreground = state == AppLifecycleState.resumed;
+    if (!_foreground && model.isPlaying) {
       game.matchPaused = true;
-      _refresh();
     }
+    _refresh();
   }
 
   @override
@@ -229,6 +268,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     game.pauseEngine();
     game.trace.dispose();
+    unawaited(audio.dispose());
     super.dispose();
   }
 
@@ -271,6 +311,19 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                 height: 1.0,
                                 letterSpacing: 1.5,
                                 fontSize: 16))),
+                    IconButton(
+                      tooltip: sound ? 'Turn sound off' : 'Turn sound on',
+                      onPressed: () {
+                        setState(() {
+                          _soundChanged = true;
+                          sound = !sound;
+                          audio.enabled = sound;
+                        });
+                        _saveBool('sound', sound);
+                      },
+                      icon: Icon(sound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                          size: 20, color: Colors.white60),
+                    ),
                     IconButton(
                       tooltip:
                           haptics ? 'Turn vibration off' : 'Turn vibration on',
@@ -438,7 +491,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         model: model,
         progress: progress,
         onStart: game.startStage,
-        onRetry: () => _selectStage(model.stageIndex!),
+        onRetry: _retryStage,
         onNext: () => model.isFinalStage ? _stageMap() : _selectStage(model.stageIndex! + 1),
         onStages: _stageMap,
       );
@@ -538,7 +591,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
           Padding(
               padding: const EdgeInsets.only(top: 10),
               child: TextButton(
-                onPressed: game.endRun,
+                onPressed: _endRun,
                 child: Text(model.isChallenge ? 'END STAGE' : 'END RUN',
                     style: const TextStyle(
                         color: Colors.white54,
@@ -567,6 +620,20 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   Widget _footer() {
     final stage = model.stage;
+    final fireLabel = stage == null
+        ? ''
+        : model.phase == MatchPhase.flying && model.shotIsFire
+            ? 'FIRE SHOT · GOALS SCORE 2×'
+            : model.objectiveMet
+                ? 'STAGE COMPLETE'
+                : model.timeExpired
+                    ? 'TIME IS UP'
+                    : model.phase == MatchPhase.finished
+                        ? 'FRESH FIRE CHARGE ON RETRY'
+                        : model.fireReady
+                            ? 'FIRE SHOT READY · NEXT SHOT 2×'
+                            : '${model.fireCharge}/${stage.fireChargeGoals} '
+                              '${stage.fireChargeUnit.toUpperCase()}${stage.fireChargeGoals == 1 ? '' : 'S'} TO FIRE';
     final objective = stage == null
         ? (model.onFire ? 'ON FIRE · 2× POINTS' : '${model.streak}/5 STREAK TO 2×')
         : '${model.objectiveProgress}/${stage.target} ${stage.unit.toUpperCase()}';
@@ -577,7 +644,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                 ? 'BUZZER SHOT — THIS ONE STILL COUNTS.'
                 : stage.objective == StageObjective.corners
                     ? 'THE GLOWING CORNERS ADVANCE THIS STAGE.'
-                    : model.onFire ? 'ON FIRE · 2× POINTS' : stage.skill
+                    : model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill
             : model.phase == MatchPhase.flying
                 ? (model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…')
                 : model.showTapCue ? 'TAP THE GLOW. LOCK THE ARROW.'
@@ -610,6 +677,29 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             semanticsValue: objective,
           ),
         ),
+        // Reserve this row throughout the stage so starting/ending an attempt
+        // does not resize the pitch just to add or remove the charge meter.
+        if (stage != null) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Icons.local_fire_department_rounded,
+                color: Color(0xffffc857), size: 18),
+            const SizedBox(width: 6),
+            Expanded(child: Text(fireLabel,
+                style: const TextStyle(fontSize: 10, color: Color(0xffffc857)))),
+            const SizedBox(width: 8),
+            for (var i = 0; i < stage.fireChargeGoals; i++)
+              Container(
+                width: 18, height: 6,
+                margin: const EdgeInsets.only(left: 4),
+                decoration: BoxDecoration(
+                  color: i < model.fireCharge
+                      ? const Color(0xffffc857) : Colors.white12,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+          ]),
+        ],
         const SizedBox(height: 12),
         Text(hint, textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 10, letterSpacing: 1.1, color: Colors.white60)),

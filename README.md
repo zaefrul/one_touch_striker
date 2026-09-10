@@ -10,6 +10,8 @@ The rendering updates cache field and player drawing commands, text layouts, dyn
 
 The challenge milestone adds six stages with different objectives, opponents, pitch colours, unlocks and saved stars. Select **PLAY CHALLENGES** from the home screen. Classic remains available under **LET'S PLAY**. This milestone is source-only: no analysis, tests, builds or game runs were executed for publication. The owner will validate it locally. See [challenge design and playtest notes](CHALLENGES.md).
 
+**Beat the Keeper** adds earlier, single-use Fire Shots in challenges, three named keeper patterns, seven original sound effects, a saved sound toggle and direct retries. The opening stage can now deliver a Fire Shot after two consecutive goals; Corner Artist charges after one corner. See [rules and local handoff](BEAT_THE_KEEPER.md). These source changes have not been built, run or playtested here.
+
 ## Run on your machine
 
 Install stable Flutter and the platform toolchain, then clone this repository:
@@ -17,6 +19,7 @@ Install stable Flutter and the platform toolchain, then clone this repository:
 ```bash
 git clone git@github.com:zaefrul/one_touch_striker.git
 cd one_touch_striker
+git switch feat/stage-challenges
 flutter pub get
 flutter analyze
 flutter test
@@ -25,6 +28,8 @@ flutter run
 ```
 
 Android, iOS, and web platform projects and the dependency lockfile are committed. Bootstrap is only needed to regenerate missing platform scaffolding. Use a Flutter version compatible with the committed lockfile; its current SDK constraints require Dart 3.12+ and Flutter 3.44+.
+
+The audio milestone adds `audioplayers: ^6.8.1`. Its new dependency resolution is left to the owner: run `flutter pub get` after pulling and retain the updated `pubspec.lock`. The existing lockfile was not regenerated during source publication.
 
 Android requires the Android SDK and an emulator or connected phone. Building for iOS requires macOS and Xcode, plus signing for a physical device.
 
@@ -65,14 +70,16 @@ If the owner later chooses to use it after integration, the manual workflow reso
 
 | Stage | Objective | New challenge |
 | --- | --- | --- |
-| 1 · First Touch | Score 3 goals | Slower aim and keeper to learn timing |
-| 2 · Moving Wall | Score 3 goals | One sweeping defender |
-| 3 · Corner Artist | Score 2 corner goals | Precision; centre goals do not advance the objective |
-| 4 · Beat the Clock | Score 4 goals in 25 active seconds | Faster decisions against the keeper |
-| 5 · Double Trouble | Score 4 goals | Two defenders crossing in opposite directions |
-| 6 · Captain's Finish | Score 8 points in 30 active seconds | Two defenders and a keeper with changing pace |
+| 1 · First Touch | Score 3 goals | The Sweeper; third consecutive goal can be a Fire goal |
+| 2 · Moving Wall | Score 3 goals | The Sweeper and one defender |
+| 3 · Corner Artist | Score 2 corner goals | The Sentinel holds at each side; one corner charges Fire |
+| 4 · Beat the Clock | Score 4 goals in 25 active seconds | The Sentinel under time pressure |
+| 5 · Double Trouble | Score 4 goals | The Gambler and two crossing defenders |
+| 6 · Captain's Finish | Score 8 points in 30 active seconds | The Gambler, two defenders and Fire corner opportunities |
 
 Every attempt starts with three chances and its own score. Clearing a stage unlocks the next; replay any unlocked stage immediately. A clear with zero, one or two misses awards three, two or one stars respectively. Only the best stars per stage are saved, under `challenge_stars_v1`; Classic best scores use their existing key and are not changed by challenges. An unfinished attempt restarts from its briefing after relaunch.
+
+Retry from results goes directly into a fresh attempt; choosing a new stage opens its briefing. Two consecutive goals charge the next shot to 2× points (one corner goal in Corner Artist). The boosted shot consumes charge; misses reset it. Fire Shots can still be saved, blocked or missed.
 
 Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Opponents use fixed stage patterns; Classic's goal-based unlocks do not add extra defenders during a challenge.
 
@@ -90,10 +97,13 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Optional local DevTools phase markers via `--dart-define=STRIKER_TRACE=true`
 - Six-stage challenge map, objective HUD, countdown, stage briefings and results
 - Stage-specific pitch palettes, defence patterns, unlocks, retries and saved stars
+- Three named keepers with different movement, coloured kits and briefings
+- Early challenge Fire Shots, visible charge and direct rematches
+- Preloaded sound effects, independent saved mute and lifecycle cleanup
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
 - Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
 
-Corner and near-post shots have cinematic slow motion; sound effects and recorded replays are not included. There are no ads, purchases, accounts, multiplayer, analytics, or online services. Graphics and stage balance need real-device playtesting before release.
+Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays are not included. There are no ads, purchases, accounts, multiplayer, analytics, or online services. Graphics, audio and stage balance need real-device playtesting before release.
 
 ## Project structure
 
@@ -102,6 +112,8 @@ Corner and near-post shots have cinematic slow motion; sound effects and recorde
 | `lib/main.dart` | App shell, menu/HUD, lifecycle pause, storage and haptics |
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
+| `lib/game/keeper_style.dart` | Named keeper profiles and continuous movement patterns |
+| `lib/game/striker_audio.dart` | Preloaded effects, playback cleanup and mute control |
 | `lib/game/striker_game.dart` | Flame adapter and procedural rendering |
 | `lib/game/shot_trail.dart` | Fixed-interval trail sampling with reusable storage |
 | `lib/game/playtest_trace.dart` | Opt-in local DevTools phase markers |
@@ -113,6 +125,8 @@ Corner and near-post shots have cinematic slow motion; sound effects and recorde
 | `test/challenge_widget_test.dart` | Challenge entry/retry, saved unlocks and pause/countdown cases |
 | `test/motion_model_test.dart` | Movement continuity, easing, trail timing and statistics cases |
 | `test/results_widget_test.dart` | Personal-best, tied-replay and record preservation cases |
+| `test/keeper_challenge_test.dart` | Fire scoring, saves, buzzer shot, direct retry and keeper continuity |
+| `assets/audio/` / `tool/generate_audio.py` | Original WAV effects and their generator |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 
 ## First device checks

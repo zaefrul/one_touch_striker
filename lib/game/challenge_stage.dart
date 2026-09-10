@@ -1,3 +1,5 @@
+import 'keeper_style.dart';
+
 enum StageObjective { goals, corners, points }
 
 enum DefencePattern { sweep, crossing }
@@ -21,7 +23,8 @@ class ChallengeStage {
     this.defenderSpeed = 1.05,
     this.pattern = DefencePattern.sweep,
     this.timeLimit,
-    this.keeperTempo = 0,
+    this.keeper = KeeperStyle.sweeper,
+    this.fireChargeGoals = 2,
   });
 
   final String name;
@@ -37,7 +40,8 @@ class ChallengeStage {
   final double defenderSpeed;
   final DefencePattern pattern;
   final int? timeLimit;
-  final double keeperTempo;
+  final KeeperStyle keeper;
+  final int fireChargeGoals;
   final int pitchColor;
   final int stripeColor;
 
@@ -48,6 +52,12 @@ class ChallengeStage {
       };
 
   String get objectiveLabel => 'Score $target $unit';
+  String get fireChargeUnit =>
+      objective == StageObjective.corners ? 'corner goal' : 'goal';
+  String get fireRule =>
+      '$fireChargeGoals $fireChargeUnit${fireChargeGoals == 1 ? '' : 's'} '
+      'in a row ${fireChargeGoals == 1 ? 'charges' : 'charge'} a Fire Shot. '
+      'Your next goal scores 2× points; a miss resets charge.';
   String get rulesLabel => timeLimit == null
       ? '3 chances · No timer'
       : '3 chances · $timeLimit active seconds';
@@ -92,6 +102,8 @@ const challengeStages = [
     aimSpeed: 1.40,
     keeperSpeed: 1.10,
     keeperRange: 100,
+    keeper: KeeperStyle.sentinel,
+    fireChargeGoals: 1,
     pitchColor: 0xff4d456e,
     stripeColor: 0xff584f7b,
   ),
@@ -105,6 +117,7 @@ const challengeStages = [
     aimSpeed: 1.50,
     keeperSpeed: 1.25,
     keeperRange: 105,
+    keeper: KeeperStyle.sentinel,
     timeLimit: 25,
     pitchColor: 0xff73552d,
     stripeColor: 0xff806136,
@@ -119,6 +132,7 @@ const challengeStages = [
     aimSpeed: 1.50,
     keeperSpeed: 1.30,
     keeperRange: 105,
+    keeper: KeeperStyle.gambler,
     defenders: 2,
     defenderSpeed: 1.15,
     pattern: DefencePattern.crossing,
@@ -128,14 +142,14 @@ const challengeStages = [
   ChallengeStage(
     name: "Captain's Finish",
     skill: 'MAKE EVERY SHOT COUNT',
-    brief: 'Earn eight points against two defenders and a keeper who changes pace. Corners are worth three.',
-    tip: 'A few corner goals can beat the clock. Watch the keeper slow down and speed up before you commit.',
+    brief: 'Earn eight points against The Gambler and two defenders. Corners are worth three; a Fire corner is worth six.',
+    tip: 'Two goals charge a Fire Shot. Read the crossing defenders and aim for a corner to finish strongly.',
     objective: StageObjective.points,
     target: 8,
     aimSpeed: 1.60,
     keeperSpeed: 1.40,
     keeperRange: 108,
-    keeperTempo: .35,
+    keeper: KeeperStyle.gambler,
     defenders: 2,
     defenderSpeed: 1.25,
     timeLimit: 30,
