@@ -19,16 +19,16 @@ the player to the map to improve their stars.
 | --- | --- | --- | --- | --- |
 | First Touch | Timing | 3 goals | The Sweeper | Unlimited |
 | Moving Wall | Reading lanes | 3 goals | The Sweeper + 1 defender | Unlimited |
-| Corner Artist | Precision | 2 corner goals | The Sentinel; only glowing corners advance progress | Unlimited |
+| Corner Artist | Precision | One goal in each corner | Corner Duel vs The Sentinel; repeated sides do not advance the duel | Unlimited |
 | Beat the Clock | Quick decisions | 4 goals | The Sentinel | 25 active seconds |
 | Double Trouble | Reading two lanes | 4 goals | The Gambler + 2 crossing defenders | Unlimited |
-| Captain's Finish | Combining skills | 8 points | The Gambler + 2 offset defenders | 30 active seconds |
+| Captain's Finish | Combining skills | 8 points with a Fire goal finish | Fire Finish vs The Gambler + 2 offset defenders | 30 active seconds |
 | Pressure Cooker | Fast decisions through traffic | 5 goals | The Sweeper + 2 crossing defenders | 26 active seconds |
 | Needle Threader | Corners through traffic | 3 corner goals | The Sentinel + 2 offset defenders | Unlimited |
-| Triple Wall | Reading three lanes | 5 goals | The Gambler + 3 defenders in a repeating wave | Unlimited |
+| Triple Wall | Reading three lanes | 5 goals including one past a rush | Rush Hour vs The Gambler + 3 defenders in a repeating wave | Unlimited |
 | Sudden Rush | Converting Fire charge to points | 12 points | The Sweeper + 2 faster crossing defenders | 22 active seconds |
 | Corner Siege | Precision under pressure | 4 corner goals | The Sentinel + 3 defenders in a repeating wave | 32 active seconds |
-| Champion's Gate | Mastery | 18 points | The Gambler + 3 defenders with different speeds | 28 active seconds |
+| Champion's Gate | Mastery | 18 points with a Fire corner finish | Champion Final vs The Gambler + 3 defenders with different speeds | 34 active seconds |
 
 The deliberate reset to a keeper-only pitch in stage three makes corner timing
 the new skill. Stage four adds urgency before stage five introduces the second
@@ -38,9 +38,11 @@ Each stage has its own name and cached pitch palette.
 ## Champion stages (7–12)
 
 This expansion continues the owner's preferred `feat/stage-challenges` version
-from `d9073fef58b60cfe8a2afef3b0840ed3ace7cdc1`. The original six stage targets,
-movement settings and save positions are retained. The map separates The Climb
-from Champion Stages and now offers 36 stars.
+from `d9073fef58b60cfe8a2afef3b0840ed3ace7cdc1`. That expansion retained the
+original six stage targets, movement settings and save positions. The later
+[Rival Cup update](RIVAL_CUP.md) adds the four showdown conditions shown above
+and raises the final timer to 34 seconds. The map separates The Climb from
+Champion Stages and offers 36 stars; all saved stage positions are retained.
 
 Difficulty alternates between pace and precision. Stage eight removes the timer
 while adding defended corners. Stage nine introduces the third defender without
@@ -70,10 +72,11 @@ skills, delayed dives, signalled slides, marking and save taunts to these stages
 Its new collision poses and learned coverage change the shooting difficulty;
 the values above remain patrol settings rather than the whole keeper trajectory.
 
-Five uninterrupted corner goals earn 3 + 3 + 6 + 3 + 3 = 18 points for the final
-target. Fire doubles points, not goal/corner objective progress. This is scoring
+Five uninterrupted corners earn 18 points but do not meet the new final's Fire
+finish condition. A sixth corner is boosted, reaches 24 points and clears.
+Fire doubles points, not goal/corner objective progress. This is scoring
 arithmetic, not evidence that a physical shooting route or timer is balanced.
-The new targets and speeds need the owner's device playtest.
+The targets, finish conditions and speeds need the owner's device playtest.
 
 The [Beat the Keeper update](BEAT_THE_KEEPER.md) adds named profiles, a visible
 Fire meter, sound and instant rematches. Two goals without a miss charge one Fire
@@ -87,6 +90,10 @@ charge. Fire Shots use the same trajectory and collisions and can fail normally.
 
 - Clear with 0 misses: 3 stars; 1 miss: 2 stars; 2 misses: 1 star.
 - A replay can improve a medal but never lowers it. There are 36 stars to collect.
+- Rival Cup adds four separately saved showdown trophies and keeper scorelines.
+  Existing stars unlock five cosmetics at 3/9/18/27/36 stars; stars are not spent.
+  Old clears do not create historical rival wins or trophies. See `RIVAL_CUP.md`
+  for result counting, equipment persistence and the new collection screen.
 - Save the best medals in `SharedPreferencesAsync` as a string list under
   `challenge_stars_v1`. Derive unlocks from consecutive cleared stages.
 - Append the six new stages without changing that key or reordering the original
@@ -115,7 +122,8 @@ charge. Fire Shots use the same trajectory and collisions and can fail normally.
   legs. The prior stationary keeper box is used only in Classic; defenders
   retain their original boxes. No dive translation exists only in the renderer.
 - HUD timer refreshes happen on whole-second changes; objective updates happen
-  on shot results. Static pitch drawing is re-recorded only when the stage changes.
+  on shot results. Static pitch drawing is re-recorded when the stage changes
+  or the equipped net/pitch changes.
 
 ## Owner's local validation
 
@@ -133,8 +141,9 @@ source cases, not executed results.
    a small screen, including when scrolling and using larger text.
 2. Clear stage one with zero misses, then replay with a miss. Confirm stage two
    stays unlocked and the three-star record is retained after closing/reopening.
-3. In Corner Artist, score a centre goal, then two corner goals. Only the two
-   corners should fill the objective; centre goals must not cost a chance.
+3. In Corner Artist, score a centre goal, then repeat the left corner and finally
+   score right. Only distinct sides fill the two-slot objective; all goals earn
+   points, and centre goals must not cost a chance.
 4. In a timed stage, pause and background the app during aiming and flight.
    Resume should preserve the attempt and clock. Goal-feedback holds must not
    count down. Observe the last five seconds and a shot released just before zero.

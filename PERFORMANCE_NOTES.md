@@ -124,6 +124,14 @@ Capture the set/dive/slide, parry and get-up before claiming a frame improvement
 Keeper movement uses the existing simulation substeps and pause gate; no new
 animation ticker or recurring Flutter HUD rebuild is introduced.
 
+Rival Cup cosmetics reuse ball paints and a precomputed star patch. Equipping a
+net/pitch invalidates the static field picture once; the night floodlights are
+recorded into that cache. Stars, rival results and equipped looks save on result
+or selection events through the existing queue, not from the render loop. The
+new map and collection use the existing scrollable overlay. Compare default and
+night looks on the same phone; no frame-time improvement or cost was measured
+for this source update. See `RIVAL_CUP.md` for its local handoff.
+
 ## Regression cases prepared for local execution
 
 `test/motion_model_test.dart` covers motion continuity, easing, active timers,

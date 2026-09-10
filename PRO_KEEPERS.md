@@ -5,6 +5,11 @@ This source update extends `feat/stage-challenges` from
 retain their names, kits and patrol preferences, with progressively more
 advanced football actions across the twelve challenges.
 
+The subsequent [Rival Cup milestone](RIVAL_CUP.md) builds on these moves with
+four showdowns, personal keeper records and cosmetic rewards. It changes the
+win conditions of stages 3/6/9/12 and gives the final 34 active seconds; the
+keeper progression and movement settings below are unchanged.
+
 ## Progression
 
 | Stages | Tier | New behaviour | Reaction delay | Maximum sideways body travel |
@@ -66,8 +71,9 @@ play. This adds articulated drawing and collision work, so frame cost still
 needs device profiling. It is a 2D arcade pose, not motion-captured animation.
 
 Classic retains its prior keeper path, artwork and collision box. Challenge
-targets, timers, Fire scoring, twelve stage positions and stored stars retain
-their existing rules. New skills change shot difficulty and need retuning from
+targets, timers, Fire scoring, twelve stage positions and stored stars were
+preserved in this keeper milestone (see Rival Cup above for subsequent win
+conditions). New skills change shot difficulty and need retuning from
 real playtest feedback. Pause/background pause freezes the controller through
 the existing game update gate. Retry resets the keeper's action, pose, reaction,
 shot counter, marking memory and parry state with the attempt.

@@ -3,6 +3,7 @@ import 'challenge_stage.dart';
 import 'keeper_style.dart';
 import 'keeper_skill.dart';
 import 'keeper_controller.dart';
+import 'showdown.dart';
 
 enum MatchPhase {
   ready,
@@ -60,6 +61,11 @@ class MatchModel {
   bool justChargedFire = false;
   final KeeperController keeper = KeeperController();
   bool lastWasKeeperSave = false;
+  int attemptId = 0;
+  bool stageStarted = false;
+  bool leftCornerScored = false, rightCornerScored = false;
+  bool shotAgainstRush = false;
+  int rushGoals = 0;
 
   int get lives => 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
@@ -80,13 +86,56 @@ class MatchModel {
   bool get isTimed => stage?.timeLimit != null;
   bool get timeExpired => isTimed && secondsRemaining <= 0;
   int get timerSeconds => secondsRemaining.ceil();
-  int get objectiveProgress => switch (stage?.objective) {
+  int get objectiveProgress => stage?.showdown == Showdown.cornerDuel
+      ? (leftCornerScored ? 1 : 0) + (rightCornerScored ? 1 : 0)
+      : switch (stage?.objective) {
         StageObjective.goals => goals,
         StageObjective.corners => cornerGoals,
         StageObjective.points => score,
         null => 0,
       };
-  bool get objectiveMet => isChallenge && objectiveProgress >= stage!.target;
+  bool get showdownMet => switch (stage?.showdown) {
+        Showdown.cornerDuel => leftCornerScored && rightCornerScored,
+        Showdown.fireFinish => lastWasGoal && lastWasFire,
+        Showdown.rushHour => rushGoals > 0,
+        Showdown.championFinal => lastWasGoal && lastWasFire && lastWasCorner,
+        null => true,
+      };
+  bool get objectiveMet =>
+      isChallenge && objectiveProgress >= stage!.target && showdownMet;
+  String get showdownStatus => switch (stage?.showdown) {
+        Showdown.cornerDuel => leftCornerScored && rightCornerScored
+            ? 'BOTH CORNERS SCORED'
+            : leftCornerScored ? 'NEXT: RIGHT CORNER'
+                : rightCornerScored ? 'NEXT: LEFT CORNER' : 'SCORE LEFT + RIGHT CORNERS',
+        Showdown.fireFinish => objectiveMet ? 'FIRE FINISH COMPLETE' : 'FINISH WITH A FIRE GOAL',
+        Showdown.rushHour => rushGoals > 0 ? 'RUSH GOAL COMPLETE' : 'RUSH GOAL 0/1 · EVERY THIRD SHOT',
+        Showdown.championFinal => objectiveMet ? 'FIRE CORNER FINISH COMPLETE' : 'FINISH WITH A FIRE CORNER',
+        null => '',
+      };
+  String get rematchHint {
+    if (stage == null) return '';
+    if (stage!.showdown == Showdown.cornerDuel && !showdownMet) {
+      return leftCornerScored ? 'One right-corner goal was still needed.'
+          : rightCornerScored ? 'One left-corner goal was still needed.'
+              : 'Next attempt: land one goal in each corner.';
+    }
+    if (objectiveProgress >= stage!.target && !showdownMet) {
+      return switch (stage!.showdown) {
+        Showdown.fireFinish => 'You reached the points target. A Fire goal was still needed to finish.',
+        Showdown.rushHour => 'You scored enough goals. A goal past the rush was still needed.',
+        Showdown.championFinal => 'You reached the points target. A Fire corner was still needed to finish.',
+        _ => stage!.tip,
+      };
+    }
+    final remaining = math.max(0, stage!.target - objectiveProgress);
+    final unit = remaining == 1 ? switch (stage!.objective) {
+      StageObjective.goals => 'goal',
+      StageObjective.corners => 'corner goal',
+      StageObjective.points => 'point',
+    } : stage!.unit;
+    return '$remaining more $unit ${remaining == 1 ? 'was' : 'were'} needed. ${stage!.showdown?.shortRule ?? stage!.tip}';
+  }
   int get earnedStars => phase == MatchPhase.stageCleared ? lives : 0;
   bool get isFinalStage => stageIndex == challengeStages.length - 1;
   int get accuracy =>
@@ -159,6 +208,7 @@ class MatchModel {
 
   void startStage() {
     if (phase == MatchPhase.stageIntro) {
+      stageStarted = true;
       phase = MatchPhase.aiming;
     }
   }
@@ -180,6 +230,10 @@ class MatchModel {
   }
 
   void _resetRun() {
+    attemptId++;
+    stageStarted = false;
+    leftCornerScored = rightCornerScored = shotAgainstRush = false;
+    rushGoals = 0;
     score = goals = misses = streak = lastPoints = 0;
     longestStreak = 0;
     cornerGoals = 0;
@@ -219,6 +273,7 @@ class MatchModel {
     ballY = ballStartY;
     ballAngle = 0;
     shotIsFire = false;
+    shotAgainstRush = false;
   }
 
   bool shoot() {
@@ -227,6 +282,7 @@ class MatchModel {
     }
     shotTargetX = aimX;
     shotIsFire = fireReady;
+    shotAgainstRush = isChallenge && keeper.rushIncoming;
     if (isChallenge) keeper.beginShot();
     firstAim = false;
     phase = MatchPhase.flying;
@@ -421,7 +477,12 @@ class MatchModel {
       goals++;
       if (corner) {
         cornerGoals++;
+        if (isOnTarget(shotTargetX)) {
+          if (shotTargetX <= leftPost + cornerWidth) leftCornerScored = true;
+          if (shotTargetX >= rightPost - cornerWidth) rightCornerScored = true;
+        }
       }
+      if (shotAgainstRush) rushGoals++;
       streak++;
       longestStreak = math.max(longestStreak, streak);
       if (!isChallenge && goals == 3) {
@@ -441,11 +502,13 @@ class MatchModel {
         }
         unlockNote = objectiveMet
             ? 'STAGE CLEAR!'
-            : justChargedFire
-                ? 'FIRE SHOT READY · NEXT SHOT 2×'
-                : stage!.objective == StageObjective.corners && !corner
-                    ? 'CORNERS ADVANCE THE STAGE'
-                    : '$objectiveProgress/${stage!.target} ${stage!.unit.toUpperCase()}';
+            : stage!.showdown != null && objectiveProgress >= stage!.target
+                ? showdownStatus
+                : justChargedFire
+                    ? 'FIRE SHOT READY · NEXT SHOT 2×'
+                    : stage!.objective == StageObjective.corners && !corner
+                        ? 'CORNERS ADVANCE THE STAGE'
+                        : '$objectiveProgress/${stage!.target} ${stage!.unit.toUpperCase()}';
       }
     } else {
       misses++;

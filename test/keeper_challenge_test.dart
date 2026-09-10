@@ -12,6 +12,7 @@ void settle(MatchModel match) {
 
 void score(MatchModel match, {bool corner = false}) {
   expect(match.shoot(), isTrue);
+  if (corner) match.shotTargetX = match.leftCornerScored ? 310 : 90;
   match.finishShot(goal: true, corner: corner, text: 'GOAL');
   settle(match);
 }

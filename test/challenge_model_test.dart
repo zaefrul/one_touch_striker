@@ -30,7 +30,7 @@ void main() {
     expect(match.firstAim, isTrue);
   });
 
-  test('corner objective ignores centre goals and clears on two corners', () {
+  test('corner duel ignores centre goals and clears on both corners', () {
     final match = MatchModel()..prepareStage(2)..startStage();
     match.finishShot(goal: true, text: 'GOAL');
     settleShot(match);
@@ -39,6 +39,7 @@ void main() {
     expect(match.score, 1);
     expect(match.lives, 3);
     for (var i = 0; i < 2; i++) {
+      match.shotTargetX = i == 0 ? 90 : 310;
       match.finishShot(goal: true, corner: true, text: 'CORNER');
       settleShot(match);
     }
@@ -238,7 +239,7 @@ void main() {
     }
     expect(progress.completed, isTrue);
     expect(progress.totalStars, 36);
-    expect(match.score, 18); // Five corners: 3 + 3 + 6 + 3 + 3.
+    expect(match.score, 24); // Sixth corner is the required Fire finish.
   });
 
   test('the new final allows a winning Fire corner at the buzzer and a retry', () {
@@ -259,7 +260,7 @@ void main() {
     match.retryStage();
     expect(match.phase, MatchPhase.aiming);
     expect(match.stageIndex, 11);
-    expect(match.secondsRemaining, 28);
+    expect(match.secondsRemaining, 34);
     expect(match.lives, 3);
     expect(match.score, 0);
     expect(match.fireCharge, 0);

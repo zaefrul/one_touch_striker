@@ -7,8 +7,11 @@ import 'game/challenge_stage.dart';
 import 'game/match_model.dart';
 import 'game/striker_audio.dart';
 import 'game/striker_game.dart';
+import 'game/rival_ledger.dart';
+import 'game/star_rewards.dart';
 import 'ui/challenge_panel.dart';
 import 'ui/run_summary.dart';
+import 'ui/star_rewards_panel.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -53,6 +56,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final model = MatchModel();
   final prefs = SharedPreferencesAsync();
   final progress = ChallengeProgress();
+  final rivals = RivalLedger();
+  final cosmetics = CosmeticSelection();
   late final StrikerGame game;
   late final StrikerAudio audio;
   late final Widget _pitch;
@@ -64,6 +69,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   bool storageAvailable = true;
   bool _progressLoaded = false;
   bool _showStages = false;
+  bool _showRewards = false;
+  bool _rivalHistoryAvailable = false;
+  List<StarReward> _newRewards = const [];
   bool _bestLoaded = false;
   bool _classicRunActive = false;
   int _bestBeforeRun = 0;
@@ -87,36 +95,55 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   Future<void> _load() async {
     game.trace.event('storage.load.begin');
     try {
-      final saved = await prefs.getInt('best_score') ?? 0;
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        if (saved > best) {
-          best = saved;
+      // Keep the existing star save independent of optional new record keys.
+      try {
+        final saved = await prefs.getInt('best_score') ?? 0;
+        if (!mounted) {
+          return;
         }
-        if (_classicRunActive && saved > _bestBeforeRun) {
-          _bestBeforeRun = saved;
-        }
-        _bestLoaded = true;
-      });
-      // Reconcile a new score earned while storage was loading.
-      if (best > saved) {
-        _saveInt('best_score', best);
-      }
-      final feedback = await prefs.getBool('haptics') ?? true;
-      final savedSound = await prefs.getBool('sound') ?? true;
-      final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
-      if (mounted) {
         setState(() {
-          haptics = feedback;
-          if (!_soundChanged) sound = savedSound;
-          progress.mergeSaved(savedStars);
+          if (saved > best) {
+            best = saved;
+          }
+          if (_classicRunActive && saved > _bestBeforeRun) {
+            _bestBeforeRun = saved;
+          }
+          _bestLoaded = true;
         });
+        // Reconcile a new score earned while storage was loading.
+        if (best > saved) {
+          _saveInt('best_score', best);
+        }
+        final feedback = await prefs.getBool('haptics') ?? true;
+        final savedSound = await prefs.getBool('sound') ?? true;
+        final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
+        if (mounted) {
+          setState(() {
+            haptics = feedback;
+            if (!_soundChanged) sound = savedSound;
+            progress.mergeSaved(savedStars);
+          });
+        }
+      } catch (_) {
+        if (mounted) setState(() => storageAvailable = false);
       }
-    } catch (_) {
-      if (mounted) {
-        setState(() => storageAvailable = false);
+      try {
+        final savedRivals = await prefs.getString(RivalLedger.storageKey);
+        if (mounted) {
+          _rivalHistoryAvailable = rivals.restore(savedRivals);
+          if (!_rivalHistoryAvailable) storageAvailable = false;
+        }
+      } catch (_) {
+        if (mounted) storageAvailable = false;
+      }
+      try {
+        final savedLooks = await prefs.getString(CosmeticSelection.storageKey);
+        if (mounted) {
+          if (!cosmetics.restore(savedLooks, progress.totalStars)) storageAvailable = false;
+          game.applyCosmetics(cosmetics);
+        }
+      } catch (_) {
+        if (mounted) storageAvailable = false;
       }
     } finally {
       game.trace.event('storage.load.end');
@@ -153,11 +180,17 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   void _refresh() {
     if (mounted) {
       audio.suspended = !_foreground || game.matchPaused;
+      final starsBefore = progress.totalStars;
       if (model.phase == MatchPhase.stageCleared &&
           progress.recordClear(model.stageIndex!, model.earnedStars)) {
+        _newRewards = rewardsEarnedBetween(starsBefore, progress.totalStars);
         final savedStars = progress.encode();
         _enqueueWrite(() =>
             prefs.setStringList(ChallengeProgress.storageKey, savedStars));
+      }
+      if (_rivalHistoryAvailable && rivals.recordResult(model)) {
+        final savedRivals = rivals.encode();
+        _enqueueWrite(() => prefs.setString(RivalLedger.storageKey, savedRivals));
       }
       setState(() {});
     }
@@ -207,6 +240,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _startClassic() {
     audio.stopAll();
+    _showStages = _showRewards = false;
+    _newRewards = const [];
     _bestBeforeRun = best;
     _classicRunActive = true;
     game.startMatch();
@@ -225,6 +260,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       return;
     }
     _showStages = false;
+    _showRewards = false;
+    _newRewards = const [];
     _classicRunActive = false;
     audio.stopAll();
     game.prepareStage(index);
@@ -232,6 +269,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _retryStage() {
     audio.stopAll();
+    _newRewards = const [];
     game.retryStage();
   }
 
@@ -243,6 +281,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   void _stageMap() {
     audio.stopAll();
     _showStages = true;
+    _showRewards = false;
+    _newRewards = const [];
     _classicRunActive = false;
     game.returnToMenu();
   }
@@ -250,8 +290,29 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   void _home() {
     audio.stopAll();
     _showStages = false;
+    _showRewards = false;
+    _newRewards = const [];
     _classicRunActive = false;
     game.returnToMenu();
+  }
+
+  void _openRewards() {
+    if (!_progressLoaded || model.isPlaying) return;
+    audio.stopAll();
+    _showStages = _showStages || model.isChallenge;
+    _showRewards = true;
+    _classicRunActive = false;
+    game.returnToMenu();
+  }
+
+  void _closeRewards() => setState(() => _showRewards = false);
+
+  void _equipReward(StarReward reward) {
+    if (!_progressLoaded || !cosmetics.equip(reward, progress.totalStars)) return;
+    game.applyCosmetics(cosmetics);
+    final savedLooks = cosmetics.encode();
+    _enqueueWrite(() => prefs.setString(CosmeticSelection.storageKey, savedLooks));
+    setState(() {});
   }
 
   @override
@@ -279,10 +340,12 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     final stageOverlay = model.phase == MatchPhase.stageIntro ||
         model.phase == MatchPhase.stageCleared;
     return PopScope(
-      canPop: ready && !_showStages,
+      canPop: ready && !_showStages && !_showRewards,
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) {
-          if (model.isPlaying) {
+          if (_showRewards) {
+            _closeRewards();
+          } else if (model.isPlaying) {
             if (!game.matchPaused) {
               _pause();
             }
@@ -343,10 +406,10 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                           icon: Icon(game.matchPaused
                               ? Icons.play_arrow_rounded
                               : Icons.pause_rounded)),
-                    if (!model.isPlaying && (!ready || _showStages))
+                    if (!model.isPlaying && (!ready || _showStages || _showRewards))
                       IconButton(
-                          tooltip: model.isChallenge ? 'Stage select' : 'Home',
-                          onPressed: model.isChallenge ? _stageMap : _home,
+                          tooltip: _showRewards ? 'Back' : model.isChallenge ? 'Stage select' : 'Home',
+                          onPressed: _showRewards ? _closeRewards : model.isChallenge ? _stageMap : _home,
                           icon: const Icon(Icons.arrow_back_rounded)),
                   ]),
                 ),
@@ -446,7 +509,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                               builder: (context, constraints) =>
                                   SingleChildScrollView(
                                     key: ValueKey((model.phase, model.stageIndex,
-                                        _showStages, game.matchPaused)),
+                                        _showStages, _showRewards, game.matchPaused)),
                                     child: ConstrainedBox(
                                         constraints: BoxConstraints(
                                             minHeight: constraints.maxHeight),
@@ -483,13 +546,23 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       );
 
   Widget _overlay(bool ready, bool finished) {
+    if (ready && _showRewards) {
+      return StarRewardsPanel(stars: progress.totalStars, selection: cosmetics,
+          onEquip: _equipReward, onBack: _closeRewards);
+    }
     if (ready && _showStages) {
-      return ChallengeMap(progress: progress, onSelect: _selectStage, onBack: _home);
+      return ChallengeMap(progress: progress, rivals: rivals,
+          recordsAvailable: _rivalHistoryAvailable,
+          onSelect: _selectStage, onBack: _home, onRewards: _openRewards);
     }
     if (model.isChallenge && !game.matchPaused) {
       return StagePanel(
         model: model,
         progress: progress,
+        rivals: rivals,
+        recordsAvailable: _rivalHistoryAvailable,
+        newRewards: _newRewards,
+        onRewards: _openRewards,
         onStart: game.startStage,
         onRetry: _retryStage,
         onNext: () => model.isFinalStage ? _stageMap() : _selectStage(model.stageIndex! + 1),
@@ -553,9 +626,13 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             ),
           ),
           const SizedBox(height: 8),
-          Text('${challengeStages.length} stages · ${progress.totalStars}/${challengeStages.length * 3} stars · New objectives',
+          Text('Rival Cup · ${challengeStages.length} stages · ${progress.totalStars}/${challengeStages.length * 3} stars',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 11, color: Colors.white60)),
+          const SizedBox(height: 10),
+          NextRewardCard(stars: progress.totalStars, onOpen: _openRewards),
+          TextButton(onPressed: _progressLoaded ? _openRewards : null,
+              child: const Text('STAR REWARDS')),
           const SizedBox(height: 20),
           const Text('CLASSIC · CHASE YOUR BEST SCORE',
               textAlign: TextAlign.center,
@@ -598,6 +675,10 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.6)),
               )),
+        if (!ready && !finished && model.isChallenge && !model.objectiveMet)
+          const Text('Ending this attempt gives the keeper a win.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, color: Colors.white54)),
         if (finished)
           TextButton(onPressed: _home, child: const Text('HOME & CHALLENGES')),
         if (ready)
@@ -642,9 +723,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         : stage != null
             ? model.timeExpired && model.phase == MatchPhase.flying
                 ? 'BUZZER SHOT — THIS ONE STILL COUNTS.'
-                : stage.objective == StageObjective.corners
-                    ? 'THE GLOWING CORNERS ADVANCE THIS STAGE.'
-                    : model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill
+                : stage.showdown != null
+                    ? model.showdownStatus
+                    : stage.objective == StageObjective.corners
+                        ? 'THE GLOWING CORNERS ADVANCE THIS STAGE.'
+                        : model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill
             : model.phase == MatchPhase.flying
                 ? (model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…')
                 : model.showTapCue ? 'TAP THE GLOW. LOCK THE ARROW.'

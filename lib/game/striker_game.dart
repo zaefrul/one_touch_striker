@@ -7,6 +7,7 @@ import 'match_model.dart';
 import 'keeper_style.dart';
 import 'keeper_controller.dart';
 import 'keeper_pose.dart';
+import 'star_rewards.dart';
 import 'playtest_trace.dart';
 import 'shot_trail.dart';
 
@@ -90,6 +91,11 @@ class StrikerGame extends FlameGame {
   final Paint _goalFlashPaint = Paint();
   final Path _aimPath = Path();
   final Path _ballPatch = _makeBallPatch();
+  final Path _championPatch = _makeChampionPatch();
+  StarReward _ballSkin = StarReward.classicBall;
+  StarReward _netSkin = StarReward.standardNet;
+  StarReward _pitchSkin = StarReward.dayPitch;
+  final Paint _neonHaloPaint = Paint()..color = const Color(0x44d9ff6a);
   final RRect _pitchBorder = RRect.fromRectAndRadius(
       const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
   final List<Offset> _confettiVelocities = List.generate(40, (i) {
@@ -171,6 +177,19 @@ class StrikerGame extends FlameGame {
 
   @override
   Color backgroundColor() => const Color(0xff073c34);
+
+  void applyCosmetics(CosmeticSelection selection) {
+    final fieldChanged = _netSkin != selection.net || _pitchSkin != selection.pitch;
+    _ballSkin = selection.ball;
+    _netSkin = selection.net;
+    _pitchSkin = selection.pitch;
+    _ballPaint.color = Color(_ballSkin.primary);
+    _ballPatchPaint.color = Color(_ballSkin.secondary);
+    if (fieldChanged) {
+      _fieldPicture?.dispose();
+      _fieldPicture = null;
+    }
+  }
 
   void startMatch() {
     trace.event('classic.start-or-restart');
@@ -365,16 +384,31 @@ class StrikerGame extends FlameGame {
   void _pitch(Canvas c) {
     final rect = RRect.fromRectAndRadius(
         const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
-    c.drawRRect(rect, Paint()..color = Color(model.stage?.pitchColor ?? 0xff126a50));
+    final night = _pitchSkin == StarReward.nightPitch;
+    c.drawRRect(rect, Paint()..color = Color(night
+        ? _pitchSkin.primary : model.stage?.pitchColor ?? 0xff126a50));
     c.save();
     c.clipRRect(rect);
     for (var i = 0; i < 9; i++) {
       if (i.isEven) {
         c.drawRect(Rect.fromLTWH(12, 12 + i * 70, 376, 70),
-            Paint()..color = Color(model.stage?.stripeColor ?? 0xff167456));
+            Paint()..color = Color(night
+                ? _pitchSkin.secondary : model.stage?.stripeColor ?? 0xff167456));
       }
     }
     c.restore();
+    if (night) {
+      // Decorative floodlights are recorded with the static pitch, never in
+      // the per-frame animation path or collision model.
+      final glow = Paint()..color = const Color(0x447edfff);
+      final lamp = Paint()..color = const Color(0xffd6f7ff);
+      for (final x in [28.0, 372.0]) {
+        c.drawCircle(Offset(x, 72), 15, glow);
+        c.drawRRect(RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset(x, 72), width: 14, height: 6),
+            const Radius.circular(2)), lamp);
+      }
+    }
     final line = Paint()
       ..color = const Color(0x668bddad)
       ..style = PaintingStyle.stroke
@@ -401,7 +435,7 @@ class StrikerGame extends FlameGame {
             const Rect.fromLTWH(60, 51, 280, 55), const Radius.circular(6)),
         Paint()..color = const Color(0xff082f2c));
     final net = Paint()
-      ..color = const Color(0xff32635a)
+      ..color = Color(_netSkin.primary)
       ..strokeWidth = .8;
     for (double x = 65; x <= 335; x += 15) {
       c.drawLine(Offset(x, 55), Offset(x, 100), net);
@@ -415,7 +449,7 @@ class StrikerGame extends FlameGame {
     _label(c, '+3', 91, 72, 13, const Color(0xffe1ff8d));
     _label(c, '+3', 309, 72, 13, const Color(0xffe1ff8d));
     final frame = Paint()
-      ..color = const Color(0xffeef8df)
+      ..color = Color(_netSkin.secondary)
       ..strokeWidth = 5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -557,9 +591,13 @@ class StrikerGame extends FlameGame {
       c.drawCircle(Offset.zero, 13, _fireBallPaint);
     }
     c.drawOval(const Rect.fromLTWH(-8, 2.5, 20, 9), _ballShadowPaint);
+    if (_ballSkin == StarReward.neonBall) {
+      c.drawCircle(Offset.zero, 10, _neonHaloPaint);
+    }
     c.drawCircle(Offset.zero, 8, _ballPaint);
     c.rotate(model.ballAngle);
-    c.drawPath(_ballPatch, _ballPatchPaint);
+    c.drawPath(_ballSkin == StarReward.championBall ? _championPatch : _ballPatch,
+        _ballPatchPaint);
     c.restore();
   }
 
@@ -576,6 +614,17 @@ class StrikerGame extends FlameGame {
       }
     }
     return patch..close();
+  }
+
+  static Path _makeChampionPatch() {
+    final path = Path();
+    for (var i = 0; i < 10; i++) {
+      final angle = i * math.pi / 5 - math.pi / 2;
+      final radius = i.isEven ? 4.5 : 2.0;
+      final x = math.cos(angle) * radius, y = math.sin(angle) * radius;
+      if (i == 0) { path.moveTo(x, y); } else { path.lineTo(x, y); }
+    }
+    return path..close();
   }
 
   void _celebrate(Canvas c) {

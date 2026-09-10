@@ -1,5 +1,6 @@
 import 'keeper_style.dart';
 import 'keeper_skill.dart';
+import 'showdown.dart';
 
 enum StageObjective { goals, corners, points }
 
@@ -29,6 +30,7 @@ class ChallengeStage {
     this.timeLimit,
     this.keeper = KeeperStyle.sweeper,
     this.keeperSkill = KeeperSkill.academy,
+    this.showdown,
     this.fireChargeGoals = 2,
   });
 
@@ -47,6 +49,7 @@ class ChallengeStage {
   final int? timeLimit;
   final KeeperStyle keeper;
   final KeeperSkill keeperSkill;
+  final Showdown? showdown;
   final int fireChargeGoals;
   final int pitchColor;
   final int stripeColor;
@@ -100,9 +103,10 @@ const challengeStages = [
   ),
   ChallengeStage(
     name: 'Corner Artist',
+    showdown: Showdown.cornerDuel,
     skill: 'PICK YOUR SPOT',
-    brief: 'Only goals into the two glowing corners advance this stage.',
-    tip: 'Wait until the aiming dot enters a glowing corner. Centre goals earn points but do not fill the objective.',
+    brief: 'Your first rival showdown: score once in each glowing corner to beat The Sentinel.',
+    tip: 'Switch corners after your first corner goal. Centre goals and repeated corners still earn points, but only a new corner advances the duel.',
     objective: StageObjective.corners,
     target: 2,
     aimSpeed: 1.40,
@@ -150,8 +154,9 @@ const challengeStages = [
   ),
   ChallengeStage(
     name: "Captain's Finish",
+    showdown: Showdown.fireFinish,
     skill: 'MAKE EVERY SHOT COUNT',
-    brief: 'Earn eight points against The Gambler and two defenders. Corners are worth three; a Fire corner is worth six.',
+    brief: 'Earn at least eight points and finish with a Fire goal. Beat The Gambler to claim the Fire Finish trophy.',
     tip: 'Two goals charge a Fire Shot. Read the offset defenders and aim for a corner to finish strongly.',
     objective: StageObjective.points,
     target: 8,
@@ -203,8 +208,9 @@ const challengeStages = [
   ),
   ChallengeStage(
     name: 'Triple Wall',
+    showdown: Showdown.rushHour,
     skill: 'READ THREE LANES',
-    brief: 'A third defender joins the pitch. Score five goals through a repeating wave of three moving lanes.',
+    brief: 'Score five goals through the triple wall, including one past the rushing keeper, to claim the Rush Hour trophy.',
     tip: 'Start with the defender nearest the ball, then check the two behind. The wave repeats; there is no timer to rush you.',
     objective: StageObjective.goals,
     target: 5,
@@ -258,9 +264,10 @@ const challengeStages = [
   ),
   ChallengeStage(
     name: "Champion's Gate",
+    showdown: Showdown.championFinal,
     skill: 'MASTER THE WHOLE PITCH',
-    brief: 'Earn eighteen points against the fastest Gambler and three defenders moving at different speeds. This is the final test.',
-    tip: 'Keep your charge alive and spend Fire Shots on corners. Five consecutive corner goals earn eighteen points; open centre goals can keep you in the run.',
+    brief: 'Reach at least eighteen points with a Fire corner as your finishing shot against the World Class Gambler. Claim the final Rival Cup trophy.',
+    tip: 'Plan for a Fire corner as your finishing shot. Reaching eighteen with an ordinary goal keeps the attempt going until you land that finish.',
     objective: StageObjective.points,
     target: 18,
     aimSpeed: 2.10,
@@ -270,7 +277,8 @@ const challengeStages = [
     keeperSkill: KeeperSkill.worldClass,
     defenders: 3,
     defenderSpeed: 1.65,
-    timeLimit: 28,
+    // Allow another charge cycle for the required Fire-corner finish.
+    timeLimit: 34,
     pitchColor: 0xff26335d,
     stripeColor: 0xff303f6d,
   ),

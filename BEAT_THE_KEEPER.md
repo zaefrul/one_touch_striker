@@ -27,10 +27,12 @@ Enjoyment, retention, audio latency and frame performance have not been measured
   best-score record and goal-based defender progression remain comparable.
 
 For example, three ordinary goals in First Touch score **1 + 1 + 2 = 4** and
-clear the stage. The intended corner route through Corner Artist scores
-**3 + 6 = 9**. Two ordinary goals followed by a Fire corner can meet Captain's
-Finish's eight-point objective. Five consecutive corner goals earn
-**3 + 3 + 6 + 3 + 3 = 18** for the expanded campaign's Champion's Gate finale.
+clear the stage. One goal in each corner in Corner Artist scores **3 + 6 = 9**.
+Two ordinary goals followed by a Fire corner can meet Captain's Finish's
+eight-point objective and Fire finish. With the subsequent
+[Rival Cup rules](RIVAL_CUP.md), five consecutive corners reach 18 points in
+Champion's Gate but the required Fire corner finish occurs on the sixth,
+bringing the total to **24**. The final now allows 34 active seconds.
 These are scoring rules, not playtest results.
 
 ## Three opponents
@@ -55,7 +57,8 @@ Retry after failure or a clear starts that stage immediately. A new stage still
 opens its briefing. Retry resets score, chances, clock, streak, ball, charge,
 trail and feedback together. The result panel gives a specific three-star target,
 or another perfect clear if three stars were already earned. Previous stars and
-unlocks are preserved; this update does not introduce cosmetic unlocks.
+unlocks are preserved. The later [Rival Cup update](RIVAL_CUP.md) adds cosmetic
+unlocks from existing stars and personal keeper win/loss records on rematches.
 
 ## Sound and local setup
 
