@@ -1,10 +1,19 @@
 import 'dart:math' as math;
+import 'bonus.dart';
+import 'stage.dart';
 
 enum MatchPhase { ready, aiming, flying, result, finished }
 
 /// Pure Dart simulation. Coordinates are in a 400 × 640 logical pitch.
 /// Fixed substeps prevent fast shots tunnelling through moving defenders.
 class MatchModel {
+  MatchModel({
+    StageSpec? stage,
+    this.intensity = 1,
+    this.bonus = BallBonus.straight,
+    this.shotsMax = 5,
+  }) : stage = stage ?? StageSpec.all.first;
+
   static const width = 400.0;
   static const height = 640.0;
   static const goalY = 100.0;
@@ -15,6 +24,14 @@ class MatchModel {
   static const ballStartY = 548.0;
   static const cornerWidth = 45.0;
   static const postClip = 16.0;
+  static const straightSpeedY = 780.0;
+  static const superSpeedY = 1100.0;
+  static const curveBend = 42.0;
+
+  StageSpec stage;
+  int intensity;
+  BallBonus bonus;
+  int shotsMax;
 
   MatchPhase phase = MatchPhase.ready;
   int score = 0;
@@ -22,6 +39,7 @@ class MatchModel {
   int misses = 0;
   int streak = 0;
   int lastPoints = 0;
+  int shotsTaken = 0;
   double clock = 0;
   double ballX = ballStartX;
   double ballY = ballStartY;
@@ -35,14 +53,46 @@ class MatchModel {
   bool firstAim = true;
   int resultSerial = 0;
 
-  int get lives => 3 - misses;
-  int get level => 1 + goals ~/ 3;
-  int get multiplier => streak >= 5 ? 2 : 1;
-  int get defenderCount => goals >= 9 ? 2 : (goals >= 3 ? 1 : 0);
+  int get shotsLeft => (shotsMax - shotsTaken).clamp(0, shotsMax);
+  int get lives => shotsLeft;
+  int get level => intensity;
+  int get multiplier => streak >= 3 ? 2 : 1;
+  int get defenderCount {
+    if (stage.id == StageId.pitch) {
+      if (intensity >= 9) {
+        return 2;
+      }
+      if (intensity >= 5) {
+        return 1;
+      }
+      return 0;
+    }
+    if (intensity >= 8) {
+      return 2;
+    }
+    if (intensity >= 3) {
+      return 1;
+    }
+    return 0;
+  }
+
+  List<ObstacleSpec> get activeObstacles {
+    if (stage.obstacles.isEmpty) {
+      return const [];
+    }
+    final count = math.min(stage.obstacles.length, 1 + (intensity - 1) ~/ 4);
+    return stage.obstacles.take(count).toList();
+  }
+
+  double get _ampScale => 0.85 + intensity * .03;
+  double get _speedScale => 0.8 + intensity * .05;
+  double get speedY =>
+      bonus == BallBonus.superShoot ? superSpeedY : straightSpeedY;
+
   bool get showTapCue => firstAim && phase == MatchPhase.aiming;
   bool get onFire => multiplier == 2;
   bool get lastChance =>
-      lives == 1 &&
+      shotsLeft == 1 &&
       (phase == MatchPhase.aiming || phase == MatchPhase.flying);
   bool get shotHeadsToCornerGoal =>
       isOnTarget(shotTargetX) && isCornerTarget(shotTargetX);
@@ -53,22 +103,38 @@ class MatchModel {
       final points = '+$lastPoints POINTS';
       return unlockNote.isEmpty ? points : '$points · $unlockNote';
     }
-    if (lives <= 0) {
+    if (shotsTaken >= shotsMax) {
       return "THAT'S ALL";
     }
-    return lives == 1 ? '1 CHANCE LEFT' : '$lives CHANCES LEFT';
+    return shotsLeft == 1 ? '1 SHOT LEFT' : '$shotsLeft SHOTS LEFT';
   }
+
   double get aimX =>
-      200 + 172 * math.sin(clock * (1.35 + math.min(goals, 18) * .055));
+      200 + 172 * math.sin(clock * (1.35 + math.min(intensity, 10) * .055));
   double get keeperX =>
-      200 + 100 * math.sin(clock * (1.0 + math.min(goals, 18) * .06) + .8);
+      200 + 100 * math.sin(clock * (1.0 + math.min(intensity, 10) * .06) + .8);
   double get keeperY => 126;
   double defenderY(int index) => 278.0 + index * 108;
   double defenderX(int index) =>
       200 + 120 * math.sin(clock * (1.05 + index * .25) + index * 2.2);
 
+  double obstacleX(ObstacleSpec obstacle) =>
+      obstacle.x(clock, ampScale: _ampScale, speedScale: _speedScale);
+  double obstacleY(ObstacleSpec obstacle) =>
+      obstacle.y(clock, ampScale: _ampScale, speedScale: _speedScale);
+
+  void configure({
+    required StageSpec stage,
+    required int intensity,
+    required BallBonus bonus,
+  }) {
+    this.stage = stage;
+    this.intensity = intensity;
+    this.bonus = bonus;
+  }
+
   void start() {
-    score = goals = misses = streak = lastPoints = 0;
+    score = goals = misses = streak = lastPoints = shotsTaken = 0;
     clock = 0;
     message = '';
     unlockNote = '';
@@ -104,7 +170,6 @@ class MatchModel {
     if (phase == MatchPhase.ready || phase == MatchPhase.finished) {
       return;
     }
-    // Ignore long wall-clock gaps (app suspension, debugger, frame stalls).
     var remaining = dt.clamp(0.0, .1).toDouble();
     while (remaining > 0) {
       final step = math.min(remaining, 1 / 240);
@@ -118,7 +183,7 @@ class MatchModel {
     if (phase == MatchPhase.result) {
       resultTime -= dt;
       if (resultTime <= 0) {
-        if (misses >= 3) {
+        if (shotsTaken >= shotsMax) {
           phase = MatchPhase.finished;
         } else {
           resetBall();
@@ -130,11 +195,21 @@ class MatchModel {
     if (phase != MatchPhase.flying) {
       return;
     }
-    const speedY = 780.0;
     ballY -= speedY * dt;
     final progress =
         ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0);
     ballX = ballStartX + (shotTargetX - ballStartX) * progress;
+    if (bonus == BallBonus.curve) {
+      final side = shotTargetX >= 200 ? -1.0 : 1.0;
+      ballX += math.sin(progress * math.pi) * curveBend * side;
+    }
+    for (final obstacle in activeObstacles) {
+      if (hitsBox(obstacleX(obstacle), obstacleY(obstacle), obstacle.halfW,
+          obstacle.halfH)) {
+        finishShot(goal: false, text: obstacle.blockText);
+        return;
+      }
+    }
     for (var i = 0; i < defenderCount; i++) {
       if (hitsBox(defenderX(i), defenderY(i), 17, 13)) {
         finishShot(goal: false, text: 'BLOCKED!');
@@ -199,18 +274,13 @@ class MatchModel {
     lastWasPost = post;
     lastPoints = 0;
     unlockNote = '';
+    shotsTaken++;
     if (goal) {
-      // The fifth goal activates the multiplier for subsequent shots.
       lastPoints = (corner ? 3 : 1) * multiplier;
       score += lastPoints;
       goals++;
       streak++;
-      if (goals == 3) {
-        unlockNote = 'MARKER ON';
-      } else if (goals == 9) {
-        unlockNote = 'SECOND MARKER';
-      }
-      if (streak == 5) {
+      if (streak == 3) {
         unlockNote = '2× ON · NEXT SHOTS';
       }
     } else {

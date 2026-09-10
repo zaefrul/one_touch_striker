@@ -3,6 +3,7 @@ import 'dart:ui' hide TextStyle;
 import 'package:flame/game.dart';
 import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'match_model.dart';
+import 'stage.dart';
 
 class StrikerGame extends FlameGame {
   StrikerGame(this.model,
@@ -17,6 +18,7 @@ class StrikerGame extends FlameGame {
   double _trailTime = 0;
   double _kickTime = 0;
   Picture? _fieldPicture;
+  StageId? _drawnStage;
   final Map<(String, double, Color, double), TextPainter> _labelCache = {};
   final List<Paint> _trailPaints = List.generate(
     14,
@@ -47,23 +49,26 @@ class StrikerGame extends FlameGame {
   }
 
   void _prepareField() {
-    if (_fieldPicture != null) {
+    if (_fieldPicture != null && _drawnStage == model.stage.id) {
       return;
     }
+    _fieldPicture?.dispose();
     // Keep logical vector commands so resizing does not blur the pitch.
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
     _pitch(canvas);
     _goal(canvas);
-    _label(canvas, 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
-        const Color(0xff75b3a1), spacing: 2);
+    _label(canvas, model.stage.tagline, 200, 619, 10, model.stage.line,
+        spacing: 2);
     _fieldPicture = recorder.endRecording();
+    _drawnStage = model.stage.id;
   }
 
   @override
   void onRemove() {
     _fieldPicture?.dispose();
     _fieldPicture = null;
+    _drawnStage = null;
     for (final painter in _labelCache.values) {
       painter.dispose();
     }
@@ -72,13 +77,16 @@ class StrikerGame extends FlameGame {
   }
 
   @override
-  Color backgroundColor() => const Color(0xff073c34);
+  Color backgroundColor() => model.stage.backdrop;
 
   void startMatch() {
     model.start();
     matchPaused = false;
     _kickTime = 0;
     _trail.clear();
+    _fieldPicture?.dispose();
+    _fieldPicture = null;
+    _drawnStage = null;
     onChanged();
   }
 
@@ -167,6 +175,10 @@ class StrikerGame extends FlameGame {
     canvas.drawPicture(_fieldPicture!);
     _stakes(canvas);
     final flight = _flightT;
+    for (final obstacle in model.activeObstacles) {
+      _obstacle(canvas, obstacle, model.obstacleX(obstacle),
+          model.obstacleY(obstacle));
+    }
     for (var i = 0; i < model.defenderCount; i++) {
       final lean = model.phase == MatchPhase.flying
           ? (model.ballX - model.defenderX(i)) * .08 * flight
@@ -234,22 +246,30 @@ class StrikerGame extends FlameGame {
   }
 
   void _pitch(Canvas c) {
+    final theme = model.stage;
     final rect = RRect.fromRectAndRadius(
         const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
-    c.drawRRect(rect, Paint()..color = const Color(0xff126a50));
+    _decorBehind(c, theme);
+    c.drawRRect(rect, Paint()..color = theme.grass);
     c.save();
     c.clipRRect(rect);
     for (var i = 0; i < 9; i++) {
       if (i.isEven) {
         c.drawRect(Rect.fromLTWH(12, 12 + i * 70, 376, 70),
-            Paint()..color = const Color(0xff167456));
+            Paint()..color = theme.stripe);
+      }
+    }
+    if (theme.id == StageId.orbit) {
+      for (var i = 0; i < 28; i++) {
+        c.drawCircle(Offset(24 + (i * 47) % 352, 20 + (i * 73) % 560),
+            .8 + (i % 3) * .4, Paint()..color = const Color(0x66ffffff));
       }
     }
     c.restore();
     final line = Paint()
-      ..color = const Color(0x668bddad)
+      ..color = theme.line
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = theme.id == StageId.village ? 1.1 : 1.5;
     c.drawRRect(
         RRect.fromRectAndRadius(
             const Rect.fromLTWH(28, 100, 344, 484), const Radius.circular(2)),
@@ -259,19 +279,54 @@ class StrikerGame extends FlameGame {
     c.drawArc(const Rect.fromLTWH(132, 180, 136, 136), 0, math.pi, false, line);
     c.drawLine(const Offset(28, 436), const Offset(372, 436), line);
     c.drawCircle(const Offset(200, 436), 57, line);
-    c.drawCircle(
-        const Offset(200, 216), 3, Paint()..color = const Color(0xff8bddad));
-    _label(c, 'STRIKER ARENA', 200, 36, 11, const Color(0xff9bd7b6),
-        spacing: 3);
+    c.drawCircle(const Offset(200, 216), 3, Paint()..color = theme.line);
+    _decorStands(c, theme);
+    _label(c, theme.title, 200, 36, 11, theme.line, spacing: 3);
+  }
+
+  void _decorBehind(Canvas c, StageSpec theme) {
+    if (theme.id == StageId.village) {
+      c.drawRect(const Rect.fromLTWH(0, 40, 14, 80),
+          Paint()..color = const Color(0xff6b8f3a));
+      c.drawRect(const Rect.fromLTWH(386, 50, 14, 70),
+          Paint()..color = const Color(0xff6b8f3a));
+      c.drawRRect(
+          RRect.fromRectAndRadius(
+              const Rect.fromLTWH(8, 70, 18, 16), const Radius.circular(2)),
+          Paint()..color = const Color(0xff8b4a2b));
+    }
+    if (theme.id == StageId.orbit) {
+      c.drawCircle(
+          const Offset(48, 80), 16, Paint()..color = const Color(0xff3d6ea8));
+      c.drawCircle(
+          const Offset(52, 76), 5, Paint()..color = const Color(0xff7cb07a));
+    }
+  }
+
+  void _decorStands(Canvas c, StageSpec theme) {
+    if (theme.id == StageId.pitch || theme.id == StageId.village) {
+      return;
+    }
+    final fill = theme.id == StageId.world || theme.id == StageId.orbit
+        ? const Color(0x33101828)
+        : const Color(0x44202838);
+    c.drawRect(const Rect.fromLTWH(12, 108, 14, 460), Paint()..color = fill);
+    c.drawRect(const Rect.fromLTWH(374, 108, 14, 460), Paint()..color = fill);
+    if (theme.id == StageId.national || theme.id == StageId.world) {
+      final flag = Paint()..color = const Color(0xffd9ff6a);
+      c.drawRect(const Rect.fromLTWH(14, 120, 8, 6), flag);
+      c.drawRect(const Rect.fromLTWH(378, 120, 8, 6), flag);
+    }
   }
 
   void _goal(Canvas c) {
+    final theme = model.stage;
     c.drawRRect(
         RRect.fromRectAndRadius(
             const Rect.fromLTWH(60, 51, 280, 55), const Radius.circular(6)),
         Paint()..color = const Color(0xff082f2c));
     final net = Paint()
-      ..color = const Color(0xff32635a)
+      ..color = theme.net
       ..strokeWidth = .8;
     for (double x = 65; x <= 335; x += 15) {
       c.drawLine(Offset(x, 55), Offset(x, 100), net);
@@ -434,6 +489,91 @@ class StrikerGame extends FlameGame {
       final r = 8 + t * (18 + (i % 4) * 6);
       c.drawCircle(Offset(x + math.cos(angle) * r, 100 + math.sin(angle) * r * .45),
           2.2, _postSparkPaint);
+    }
+  }
+
+  void _obstacle(Canvas c, ObstacleSpec spec, double x, double y) {
+    c.drawOval(
+        Rect.fromCenter(center: Offset(x + 2, y + 10), width: 36, height: 12),
+        Paint()..color = const Color(0x33000000));
+    switch (spec.kind) {
+      case ObstacleKind.goat:
+        c.drawOval(Rect.fromCenter(center: Offset(x, y), width: 28, height: 16),
+            Paint()..color = const Color(0xffe8d4b0));
+        c.drawCircle(
+            Offset(x + 12, y - 4), 6, Paint()..color = const Color(0xffd9c49a));
+        break;
+      case ObstacleKind.cart:
+        c.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset(x, y), width: 30, height: 16),
+                const Radius.circular(3)),
+            Paint()..color = const Color(0xff8b4a2b));
+        c.drawCircle(
+            Offset(x - 8, y + 8), 5, Paint()..color = const Color(0xff2a2a2a));
+        c.drawCircle(
+            Offset(x + 8, y + 8), 5, Paint()..color = const Color(0xff2a2a2a));
+        break;
+      case ObstacleKind.mascot:
+        c.drawCircle(Offset(x, y), 16, Paint()..color = const Color(0xffff8a3c));
+        c.drawCircle(
+            Offset(x, y - 2), 7, Paint()..color = const Color(0xfffff3d6));
+        break;
+      case ObstacleKind.camera:
+        c.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset(x, y), width: 34, height: 12),
+                const Radius.circular(3)),
+            Paint()..color = const Color(0xff2b2b2b));
+        c.drawCircle(Offset(x + 10, y), 5, Paint()..color = const Color(0xff89c4ff));
+        break;
+      case ObstacleKind.steward:
+        c.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset(x, y + 2), width: 24, height: 22),
+                const Radius.circular(6)),
+            Paint()..color = const Color(0xffff8c1a));
+        c.drawCircle(
+            Offset(x, y - 14), 8, Paint()..color = const Color(0xffd99c71));
+        break;
+      case ObstacleKind.flag:
+        c.drawLine(
+            Offset(x - 16, y + 8),
+            Offset(x - 16, y - 10),
+            Paint()
+              ..color = const Color(0xffeef8df)
+              ..strokeWidth = 2);
+        c.drawRect(Rect.fromLTWH(x - 16, y - 10, 28, 12),
+            Paint()..color = const Color(0xffff4d4d));
+        break;
+      case ObstacleKind.press:
+        c.drawCircle(Offset(x, y), 8, Paint()..color = const Color(0xff1c1c1c));
+        c.drawCircle(
+            Offset(x, y), 14, Paint()..color = const Color(0x55fff4c2));
+        break;
+      case ObstacleKind.banner:
+        c.drawRRect(
+            RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset(x, y), width: 52, height: 12),
+                const Radius.circular(2)),
+            Paint()..color = const Color(0xffd9ff6a));
+        break;
+      case ObstacleKind.asteroid:
+        c.drawCircle(Offset(x, y), spec.halfW,
+            Paint()..color = const Color(0xff8a8478));
+        c.drawCircle(Offset(x - 4, y - 3), 3,
+            Paint()..color = const Color(0xff6d685e));
+        break;
+      case ObstacleKind.satellite:
+        c.drawRect(Rect.fromCenter(center: Offset(x, y), width: 14, height: 10),
+            Paint()..color = const Color(0xffd0d6e0));
+        c.drawRect(
+            Rect.fromCenter(center: Offset(x - 16, y), width: 12, height: 8),
+            Paint()..color = const Color(0xff6ec6ff));
+        c.drawRect(
+            Rect.fromCenter(center: Offset(x + 16, y), width: 12, height: 8),
+            Paint()..color = const Color(0xff6ec6ff));
+        break;
     }
   }
 

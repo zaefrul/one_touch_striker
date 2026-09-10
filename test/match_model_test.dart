@@ -1,5 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:one_touch_striker/game/bonus.dart';
 import 'package:one_touch_striker/game/match_model.dart';
+import 'package:one_touch_striker/game/stage.dart';
+import 'package:one_touch_striker/progress/campaign.dart';
 
 void main() {
   test('tap locks the target and repeated taps do not alter the shot', () {
@@ -12,33 +15,36 @@ void main() {
     expect(match.shotTargetX, target);
   });
 
-  test('fifth consecutive goal enables double points on following shots', () {
+  test('third consecutive goal enables double points on following shots', () {
     final match = MatchModel()..start();
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < 3; i++) {
       match.finishShot(goal: true, text: 'GOAL');
     }
-    expect(match.score, 5);
+    expect(match.score, 3);
     expect(match.multiplier, 2);
+    expect(match.unlockNote, '2× ON · NEXT SHOTS');
     match.finishShot(goal: true, corner: true, text: 'CORNER');
-    expect(match.score, 11);
+    expect(match.score, 9);
     match.finishShot(goal: false, text: 'MISS');
     expect(match.streak, 0);
     expect(match.multiplier, 1);
   });
 
-  test('three misses end a run after result feedback, restart resets state',
+  test('five shots end a substage after result feedback, restart resets state',
       () {
     final match = MatchModel()..start();
-    for (var i = 0; i < 3; i++) {
+    for (var i = 0; i < 5; i++) {
       match.finishShot(goal: false, text: 'MISS');
       for (var frame = 0; frame < 70; frame++) {
         match.update(1 / 60);
       }
     }
     expect(match.phase, MatchPhase.finished);
+    expect(match.shotsTaken, 5);
     expect(match.shoot(), isFalse);
     match.start();
-    expect(match.lives, 3);
+    expect(match.shotsTaken, 0);
+    expect(match.shotsLeft, 5);
     expect(match.score, 0);
     expect(match.phase, MatchPhase.aiming);
   });
@@ -69,7 +75,6 @@ void main() {
   test('keeper interception is detected on a crossing step', () {
     final match = MatchModel()..start();
     match.phase = MatchPhase.flying;
-    // At t≈0.52 the keeper is near x=297; this trajectory intersects him.
     match.shotTargetX = 303;
     for (var i = 0; i < 40; i++) {
       match.update(1 / 60);
@@ -78,15 +83,18 @@ void main() {
     expect(match.score, 0);
   });
 
-  test('defenders unlock with goals and large frame gaps are bounded', () {
-    final match = MatchModel()..start();
-    match.goals = 3;
-    expect(match.defenderCount, 1);
-    match.goals = 9;
-    expect(match.defenderCount, 2);
-    match.shoot();
-    match.update(30);
-    expect(match.ballY, greaterThan(460));
+  test('defenders follow intensity, not goals, and large frames are bounded',
+      () {
+    final park = MatchModel(intensity: 1)..start();
+    expect(park.defenderCount, 0);
+    expect(MatchModel(intensity: 5).defenderCount, 1);
+    expect(MatchModel(intensity: 9).defenderCount, 2);
+    final village = MatchModel(stage: StageSpec.all[1], intensity: 3);
+    expect(village.defenderCount, 1);
+    expect(MatchModel(stage: StageSpec.all[1], intensity: 8).defenderCount, 2);
+    park.shoot();
+    park.update(30);
+    expect(park.ballY, greaterThan(460));
   });
 
   test('first aim shows a tap cue until the shot locks', () {
@@ -106,36 +114,19 @@ void main() {
     expect(match.showTapCue, isTrue);
   });
 
-  test('third miss subtitle is that is all, not zero chances', () {
+  test('miss subtitles count remaining shots, last shot is that is all', () {
     final match = MatchModel()..start();
     match.finishShot(goal: false, text: 'MISS');
-    expect(match.resultSubtitle, '2 CHANCES LEFT');
+    expect(match.resultSubtitle, '4 SHOTS LEFT');
     match.finishShot(goal: false, text: 'MISS');
-    expect(match.resultSubtitle, '1 CHANCE LEFT');
+    expect(match.resultSubtitle, '3 SHOTS LEFT');
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.resultSubtitle, '2 SHOTS LEFT');
+    match.finishShot(goal: false, text: 'MISS');
+    expect(match.resultSubtitle, '1 SHOT LEFT');
     match.finishShot(goal: false, text: 'MISS');
     expect(match.resultSubtitle, "THAT'S ALL");
-    expect(match.lives, 0);
-  });
-
-  test('goal thresholds announce defender and streak unlocks', () {
-    final match = MatchModel()..start();
-    match.finishShot(goal: true, text: 'GOAL');
-    match.finishShot(goal: true, text: 'GOAL');
-    expect(match.unlockNote, isEmpty);
-    match.finishShot(goal: true, text: 'GOAL');
-    expect(match.unlockNote, 'MARKER ON');
-    expect(match.resultSubtitle, '+1 POINTS · MARKER ON');
-    match.finishShot(goal: true, text: 'GOAL');
-    match.finishShot(goal: true, text: 'GOAL');
-    expect(match.multiplier, 2);
-    expect(match.unlockNote, '2× ON · NEXT SHOTS');
-    expect(match.resultSubtitle, '+1 POINTS · 2× ON · NEXT SHOTS');
-    for (var i = 0; i < 4; i++) {
-      match.finishShot(goal: true, text: 'GOAL');
-    }
-    expect(match.goals, 9);
-    expect(match.unlockNote, 'SECOND MARKER');
-    expect(match.resultSubtitle, '+2 POINTS · SECOND MARKER');
+    expect(match.shotsLeft, 0);
   });
 
   test('a near-post miss is off the post, a far miss is just wide', () {
@@ -162,9 +153,10 @@ void main() {
   test('last chance is live only on the final aim', () {
     final match = MatchModel()..start();
     expect(match.lastChance, isFalse);
-    match.finishShot(goal: false, text: 'MISS');
-    match.finishShot(goal: false, text: 'MISS');
-    expect(match.lives, 1);
+    for (var i = 0; i < 4; i++) {
+      match.finishShot(goal: false, text: 'MISS');
+    }
+    expect(match.shotsLeft, 1);
     expect(match.lastChance, isFalse);
     for (var frame = 0; frame < 70; frame++) {
       match.update(1 / 60);
@@ -186,7 +178,31 @@ void main() {
     expect(match.shotHeadsToPost, isFalse);
   });
 
-  test('ending a run keeps the score and restart clears it', () {
+  test('village goat blocks a central shot', () {
+    final match = MatchModel(stage: StageSpec.all[1], intensity: 1)..start();
+    match.clock = 0;
+    match.phase = MatchPhase.flying;
+    match.shotTargetX = 200;
+    for (var i = 0; i < 40; i++) {
+      match.update(1 / 60);
+    }
+    expect(match.message, 'GOAT!');
+    expect(match.score, 0);
+  });
+
+  test('orbit asteroid blocks a central shot', () {
+    final match = MatchModel(stage: StageSpec.all[5], intensity: 1)..start();
+    match.clock = -((548 - 330) / match.speedY);
+    match.phase = MatchPhase.flying;
+    match.shotTargetX = 200;
+    for (var i = 0; i < 40; i++) {
+      match.update(1 / 60);
+    }
+    expect(match.message, 'ASTEROID!');
+    expect(match.score, 0);
+  });
+
+  test('ending a substage keeps the score and restart clears it', () {
     final match = MatchModel()..start();
     match.finishShot(goal: true, text: 'GOAL');
     match.endRun();
@@ -197,5 +213,70 @@ void main() {
     expect(match.score, 0);
     expect(match.phase, MatchPhase.aiming);
     expect(match.showTapCue, isTrue);
+  });
+
+  test('curve bends mid-flight and still misses a known wide target', () {
+    final match = MatchModel(bonus: BallBonus.curve)..start();
+    match.phase = MatchPhase.flying;
+    match.shotTargetX = 30;
+    var bent = false;
+    for (var i = 0; i < 40; i++) {
+      match.update(1 / 60);
+      final progress =
+          ((MatchModel.ballStartY - match.ballY) / (MatchModel.ballStartY - MatchModel.goalY))
+              .clamp(0.0, 1.0);
+      final straight =
+          MatchModel.ballStartX + (30 - MatchModel.ballStartX) * progress;
+      if ((match.ballX - straight).abs() > 8) {
+        bent = true;
+      }
+    }
+    expect(bent, isTrue);
+    expect(match.score, 0);
+    expect(match.message, 'JUST WIDE!');
+  });
+
+  test('super shoot reaches the goal in fewer ticks than straight', () {
+    MatchModel fly(BallBonus bonus) {
+      final match = MatchModel(bonus: bonus)..start();
+      match.phase = MatchPhase.flying;
+      match.shotTargetX = 90;
+      return match;
+    }
+
+    final straight = fly(BallBonus.straight);
+    var straightTicks = 0;
+    while (straight.phase == MatchPhase.flying && straightTicks < 80) {
+      straight.update(1 / 60);
+      straightTicks++;
+    }
+    final speedy = fly(BallBonus.superShoot);
+    var superTicks = 0;
+    while (speedy.phase == MatchPhase.flying && superTicks < 80) {
+      speedy.update(1 / 60);
+      superTicks++;
+    }
+    expect(MatchModel(bonus: BallBonus.superShoot).speedY,
+        greaterThan(MatchModel().speedY));
+    expect(superTicks, lessThan(straightTicks));
+    expect(speedy.phase, isNot(MatchPhase.flying));
+  });
+
+  test('star thresholds award 0 to 3 and venue 1-1 is 3 / 6 / 9', () {
+    expect(const SubstageRef(0, 0).thresholds, [3, 6, 9]);
+    expect(starsFor(0, const [3, 6, 9]), 0);
+    expect(starsFor(3, const [3, 6, 9]), 1);
+    expect(starsFor(5, const [3, 6, 9]), 1);
+    expect(starsFor(6, const [3, 6, 9]), 2);
+    expect(starsFor(9, const [3, 6, 9]), 3);
+    expect(starsFor(20, const [3, 6, 9]), 3);
+  });
+
+  test('one star unlocks the next substage and later venues wait for 1-10', () {
+    expect(starsFor(3, Campaign.thresholds(0, 0)), 1);
+    final next = const SubstageRef(0, 0).next;
+    expect(next?.code, '1-2');
+    expect(const SubstageRef(0, 9).next?.code, '2-1');
+    expect(const SubstageRef(5, 9).next, isNull);
   });
 }
