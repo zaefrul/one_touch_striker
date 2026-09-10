@@ -5,6 +5,8 @@ import 'package:flutter/painting.dart' show TextPainter, TextSpan, TextStyle;
 import 'challenge_stage.dart';
 import 'match_model.dart';
 import 'keeper_style.dart';
+import 'keeper_controller.dart';
+import 'keeper_pose.dart';
 import 'playtest_trace.dart';
 import 'shot_trail.dart';
 
@@ -70,6 +72,18 @@ class StrikerGame extends FlameGame {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 3;
   final Paint _ballShadowPaint = Paint()..color = const Color(0x55000000);
+  final Paint _keeperShadowPaint = Paint()..color = const Color(0x44000000);
+  final Paint _keeperCuePaint = Paint()..color = const Color(0xee082f2c);
+  final Paint _keeperHairPaint = Paint()
+    ..color = const Color(0xff24372d)
+    ..strokeWidth = 3
+    ..style = PaintingStyle.stroke;
+  final List<Paint> _keeperPartPaints = [
+    for (final color in [0xffffc857, 0xff173a39, 0xfffff5df, 0xff132d30, 0xffd99c71])
+      Paint()
+        ..color = Color(color)
+        ..strokeCap = StrokeCap.round,
+  ];
   final Paint _ballPaint = Paint()..color = const Color(0xfff8faed);
   final Paint _fireBallPaint = Paint()..color = const Color(0x55ffc857);
   final Paint _ballPatchPaint = Paint()..color = const Color(0xff233e37);
@@ -95,6 +109,11 @@ class StrikerGame extends FlameGame {
     _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
     _painterFor('FIRE SHOT', 13, const Color(0xffd9ff6a), 3);
     _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
+    for (final cue in ['RUSH INCOMING', 'FEET SET', 'FULL STRETCH',
+        'RUSH & SLIDE', 'COVERING LEFT', 'COVERING RIGHT',
+        'TRY AGAIN!', 'NOT THIS TIME!', 'MY BOX!']) {
+      _painterFor(cue, 10, const Color(0xffffe6a0), 1);
+    }
     _preparePlayers();
     _prepareField();
     _syncTrace();
@@ -128,7 +147,7 @@ class StrikerGame extends FlameGame {
     _pitch(canvas);
     _goal(canvas);
     _label(canvas, model.isChallenge
-        ? 'VS ${model.keeperStyle.title.toUpperCase()}'
+        ? '${model.keeperSkill.title.toUpperCase()} · ${model.keeperStyle.title.toUpperCase()}'
         : 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
         const Color(0xff75b3a1), spacing: 2);
     _fieldPicture = recorder.endRecording();
@@ -302,9 +321,12 @@ class StrikerGame extends FlameGame {
     for (var i = 0; i < model.defenderCount; i++) {
       _player(canvas, model.defenderX(i), model.defenderY(i), KeeperStyle.values.length + i);
     }
-    // Render at the same anchors used by collision detection. Translating a
-    // player toward the shot only in render made visible gaps misleading.
-    _player(canvas, model.keeperX, model.keeperY, model.keeperStyle.index);
+    if (model.isChallenge) {
+      _professionalKeeper(canvas);
+      _keeperCue(canvas);
+    } else {
+      _player(canvas, model.keeperX, model.keeperY, model.keeperStyle.index);
+    }
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
       _aim(canvas);
     }
@@ -411,6 +433,46 @@ class StrikerGame extends FlameGame {
     c.translate(x, y);
     c.drawPicture(_playerPictures[pictureIndex]);
     c.restore();
+  }
+
+  void _professionalKeeper(Canvas c) {
+    final pose = model.keeper.pose;
+    c.drawOval(Rect.fromCenter(center: Offset(pose.x + 2, pose.y + 15),
+        width: 44 + 12 * pose.rotation.abs(), height: 13), _keeperShadowPaint);
+    _keeperPartPaints[KeeperPart.kit.index].color = Color(model.keeperStyle.kitColor);
+    c.save();
+    c.translate(pose.x, pose.y);
+    c.rotate(pose.rotation);
+    for (final part in pose.segments) {
+      final paint = _keeperPartPaints[part.part.index]..strokeWidth = part.radius * 2;
+      if (part.ax == part.bx && part.ay == part.by) {
+        c.drawCircle(Offset(part.ax, part.ay), part.radius, paint);
+      } else {
+        c.drawLine(Offset(part.ax, part.ay), Offset(part.bx, part.by), paint);
+      }
+    }
+    // Hair and shirt number sit inside the shared head/torso shapes. Body
+    // segments, gloves and boots have exactly the radii used for ball contact.
+    c.drawArc(Rect.fromCircle(center: Offset(0, pose.headY), radius: 6.5),
+        math.pi, math.pi, false, _keeperHairPaint);
+    _label(c, '1', 0, -3, 11, const Color(0xff123c33));
+    c.restore();
+  }
+
+  void _keeperCue(Canvas c) {
+    if (!model.isPlaying) return;
+    final cue = model.keeper.action == KeeperAction.taunt
+        ? switch (model.keeperStyle) {
+            KeeperStyle.sweeper => 'TRY AGAIN!',
+            KeeperStyle.sentinel => 'NOT THIS TIME!',
+            KeeperStyle.gambler => 'MY BOX!',
+          }
+        : model.keeper.cue;
+    if (cue.isEmpty) return;
+    // Keep the cue in the centre of the net, away from both corner targets.
+    c.drawRRect(RRect.fromRectAndRadius(
+        const Rect.fromLTWH(126, 69, 148, 22), const Radius.circular(6)), _keeperCuePaint);
+    _label(c, cue, 200, 74, 10, const Color(0xffffe6a0), spacing: 1);
   }
 
   void _drawPlayerArt(Canvas c, double x, double y, Color kit, String number,

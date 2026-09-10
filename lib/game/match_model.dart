@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'challenge_stage.dart';
 import 'keeper_style.dart';
+import 'keeper_skill.dart';
+import 'keeper_controller.dart';
 
 enum MatchPhase {
   ready,
@@ -56,12 +58,15 @@ class MatchModel {
   bool shotIsFire = false;
   bool lastWasFire = false;
   bool justChargedFire = false;
+  final KeeperController keeper = KeeperController();
+  bool lastWasKeeperSave = false;
 
   int get lives => 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
   int get multiplier => isChallenge ? (fireReady ? 2 : 1) : (streak >= 5 ? 2 : 1);
   bool get fireReady => isChallenge && fireCharge >= stage!.fireChargeGoals;
   KeeperStyle get keeperStyle => stage?.keeper ?? KeeperStyle.sweeper;
+  KeeperSkill get keeperSkill => stage?.keeperSkill ?? KeeperSkill.academy;
   double get goalFeedbackDuration => lastWasCorner || lastWasFire ? 1.25 : .85;
   int get defenderCount =>
       stage?.defenders ?? (goals >= 9 ? 2 : (goals >= 3 ? 1 : 0));
@@ -114,10 +119,11 @@ class MatchModel {
   double get _keeperSpeed =>
       stage?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
   double get aimX => 200 + 172 * math.sin(_aimAngle);
-  double get keeperX {
+  double get _patrolKeeperX {
     return 200 + (stage?.keeperRange ?? 100) * keeperStyle.offset(_keeperAngle);
   }
-  double get keeperY => 126;
+  double get keeperX => isChallenge ? keeper.pose.x : _patrolKeeperX;
+  double get keeperY => isChallenge ? keeper.pose.y : KeeperController.homeY;
   // Three rows stay well ahead of the launch point so the nearest defender
   // leaves room to read a lane. Earlier stages retain their original layout.
   double defenderY(int index) =>
@@ -180,6 +186,7 @@ class MatchModel {
     clock = 0;
     _aimAngle = 0;
     _keeperAngle = .8;
+    keeper.reset(keeperSkill, _patrolKeeperX);
     _motionScale = 1;
     resultTime = 0;
     secondsRemaining = 0;
@@ -187,6 +194,7 @@ class MatchModel {
     message = '';
     unlockNote = '';
     lastWasGoal = lastWasCorner = lastWasPost = false;
+    lastWasKeeperSave = false;
     fireCharge = 0;
     shotIsFire = lastWasFire = justChargedFire = false;
     firstAim = true;
@@ -219,6 +227,7 @@ class MatchModel {
     }
     shotTargetX = aimX;
     shotIsFire = fireReady;
+    if (isChallenge) keeper.beginShot();
     firstAim = false;
     phase = MatchPhase.flying;
     return true;
@@ -281,6 +290,16 @@ class MatchModel {
     _aimAngle += motionDt * _aimSpeed;
     _keeperAngle += motionDt * _keeperSpeed;
     if (phase == MatchPhase.result) {
+      if (isChallenge) {
+        keeper.updateFeedback(dt, _patrolKeeperX, clock);
+        if (lastWasKeeperSave) {
+          // The saved ball is parried away during feedback; it cannot score
+          // again or remain suspended beside a keeper who is getting up.
+          ballX += keeper.parryDirection * 90 * dt;
+          ballY += 65 * dt;
+          ballAngle += 10 * dt;
+        }
+      }
       resultTime -= dt;
       if (resultTime <= 0) {
         // A shot released before zero may still clear the stage.
@@ -299,6 +318,9 @@ class MatchModel {
       return;
     }
     if (phase != MatchPhase.flying) {
+      if (isChallenge && phase == MatchPhase.aiming) {
+        keeper.updateAiming(motionDt, _patrolKeeperX, clock);
+      }
       return;
     }
     const speedY = 780.0;
@@ -307,14 +329,26 @@ class MatchModel {
     final progress =
         ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0);
     ballX = ballStartX + (shotTargetX - ballStartX) * progress;
+    if (isChallenge) {
+      keeper.updateFlight(motionDt, _patrolKeeperX, clock,
+          ballX: ballX, ballY: ballY, launchX: ballStartX, launchY: ballStartY);
+    }
     for (var i = 0; i < defenderCount; i++) {
       if (hitsBox(defenderX(i), defenderY(i), 17, 13)) {
         finishShot(goal: false, text: 'BLOCKED!');
         return;
       }
     }
-    if (hitsBox(keeperX, keeperY, 25, 12)) {
-      finishShot(goal: false, text: 'SAVED!');
+    final keeperHit = isChallenge
+        ? keeper.pose.hitsBall(ballX, ballY, ballRadius)
+        : hitsBox(keeperX, keeperY, 25, 12);
+    if (keeperHit) {
+      final saveText = !isChallenge ? 'SAVED!' : switch (keeper.action) {
+        KeeperAction.dive => 'DIVING SAVE!',
+        KeeperAction.slide => 'SLIDING SAVE!',
+        _ => 'SAVED!',
+      };
+      finishShot(goal: false, keeperSave: true, text: saveText);
       return;
     }
     if (ballY <= goalY) {
@@ -365,10 +399,15 @@ class MatchModel {
       {required bool goal,
       bool corner = false,
       bool post = false,
+      bool keeperSave = false,
       required String text}) {
     lastWasGoal = goal;
     lastWasCorner = corner;
     lastWasPost = post;
+    lastWasKeeperSave = !goal && keeperSave;
+    if (isChallenge) {
+      keeper.resolveShot(saved: lastWasKeeperSave, targetX: shotTargetX);
+    }
     // Charge cannot change during flight. Resolve the boost before updating
     // charge so the goal that arms a Fire Shot still earns normal points.
     lastWasFire = fireReady;

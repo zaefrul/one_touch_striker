@@ -65,6 +65,10 @@ keeper nor defenders react to a hidden shot target. Three-defender rows sit at
 Y = 250, 335 and 420; earlier two-defender rows remain at 278 and 386. The nearest
 new row stays 128 units from the launch point instead of crowding the ball.
 All three defender pictures and shirt labels are prepared in the existing cache.
+The [progressive keeper update](PRO_KEEPERS.md) adds Academy-to-World-Class
+skills, delayed dives, signalled slides, marking and save taunts to these stages.
+Its new collision poses and learned coverage change the shooting difficulty;
+the values above remain patrol settings rather than the whole keeper trajectory.
 
 Five uninterrupted corner goals earn 3 + 3 + 6 + 3 + 3 = 18 points for the final
 target. Fire doubles points, not goal/corner objective progress. This is scoring
@@ -106,10 +110,10 @@ charge. Fire Shots use the same trajectory and collisions and can fail normally.
   stage clears. Otherwise the result is shown before the timeout panel. A new
   shot cannot start at zero.
 - Ending the stage during its winning goal celebration preserves the clear.
-- Rendering uses the keeper and defender positions from the match model.
-  Previous render-only lean/dive translations were removed because they could
-  show an opponent away from the actual collision anchor. Collision boxes are
-  still the existing simple approximations, not pixel-perfect sprite outlines.
+- Rendering uses model positions. Challenge keeper dives now rotate and move
+  the same articulated capsules used for ball contact, including the gloves and
+  legs. The prior stationary keeper box is used only in Classic; defenders
+  retain their original boxes. No dive translation exists only in the renderer.
 - HUD timer refreshes happen on whole-second changes; objective updates happen
   on shot results. Static pitch drawing is re-recorded only when the stage changes.
 

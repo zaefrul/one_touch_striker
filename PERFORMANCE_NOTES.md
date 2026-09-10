@@ -30,7 +30,9 @@ manual-only; no workflow is dispatched by this publication.
 | Haptic dispatch preceded target locking | Lock the shot first, then issue haptics | Arrow timing matches the tap before platform feedback work |
 
 Player pictures use the same anchors as the collision model. Collision boxes
-remain the existing approximations. Cached vector commands still require
+remain the existing approximations for Classic and defenders. Challenge keepers
+now use articulated poses as described in [progressive keeper notes](PRO_KEEPERS.md).
+Cached vector commands still require
 rasterization; caching does not guarantee a specific FPS.
 
 Challenge clocks still count active time before cinematic scaling. Goal/miss
@@ -113,6 +115,14 @@ play; the cache size follows the stage configuration. The third defender uses
 the same drawing/collision anchor and adds one collision check per physics
 substep. Its frame cost has not been measured. The Fire-meter row is
 reserved throughout each stage to avoid resizing the pitch when it appears.
+
+The progressive keeper update draws fourteen reused body-part capsules, then
+tests the ball against those same parts under the same model rotation and
+translation. It reuses paints/joints and prepares cue labels before play; this
+adds drawing and collision work compared with a cached stationary player.
+Capture the set/dive/slide, parry and get-up before claiming a frame improvement.
+Keeper movement uses the existing simulation substeps and pause gate; no new
+animation ticker or recurring Flutter HUD rebuild is introduced.
 
 ## Regression cases prepared for local execution
 

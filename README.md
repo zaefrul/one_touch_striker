@@ -12,6 +12,13 @@ Challenge mode now has **12 stages and 36 stars**, with six harder Champion stag
 
 **Beat the Keeper** adds earlier, single-use Fire Shots in challenges, three named keeper patterns, seven original sound effects, a saved sound toggle and direct retries. The opening stage can now deliver a Fire Shot after two consecutive goals; Corner Artist charges after one corner. See [rules and local handoff](BEAT_THE_KEEPER.md). These source changes have not been built, run or playtested here.
 
+**Progressive keepers** now develop from Academy (stages 1–2), through Club
+(3–4), Professional (5–6) and Elite (7–9), to World Class (10–12). They add
+diving saves, signalled rushes/slides, marking of your previous shooting side
+and save taunts. Articulated gloves, body and legs use the same geometry for
+drawing and collision. See [keeper rules and playtest handoff](PRO_KEEPERS.md).
+Difficulty and frame performance remain unmeasured for this source update.
+
 ## Run on your machine
 
 Install stable Flutter and the platform toolchain, then clone this repository:
@@ -87,7 +94,7 @@ Every attempt starts with three chances and its own score. Clearing a stage unlo
 
 Retry from results goes directly into a fresh attempt; choosing a new stage opens its briefing. Two goals without a miss charge the next shot to 2× points. Corner objectives charge only from corner goals: one in Corner Artist, two in Needle Threader and Corner Siege. The boosted shot consumes charge; misses reset it. Fire Shots can still be saved, blocked or missed.
 
-Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Opponents use fixed stage patterns; Classic's goal-based unlocks do not add extra defenders during a challenge.
+Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Defenders follow fixed stage patterns; keeper skill adds delayed reactions and, at Elite and World Class, memory of the last shot's side. Classic's goal-based unlocks do not add extra defenders during a challenge.
 
 ## Implemented
 
@@ -105,6 +112,7 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Six Champion stages with tighter targets and a third defender in spaced lanes
 - Stage-specific pitch palettes, defence patterns, unlocks, retries and saved stars
 - Three named keepers with different movement, coloured kits and briefings
+- Five challenge keeper tiers, articulated diving/sliding poses, marking and save taunts
 - Early challenge Fire Shots, visible charge and direct rematches
 - Preloaded sound effects, independent saved mute and lifecycle cleanup
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
@@ -120,6 +128,9 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/keeper_style.dart` | Named keeper profiles and continuous movement patterns |
+| `lib/game/keeper_skill.dart` | Tier abilities, reaction delays, body travel and marking limits |
+| `lib/game/keeper_controller.dart` | Delayed commitment, rush schedule, recovery and learned coverage |
+| `lib/game/keeper_pose.dart` | Shared articulated body parts for drawing and collision |
 | `lib/game/striker_audio.dart` | Preloaded effects, playback cleanup and mute control |
 | `lib/game/striker_game.dart` | Flame adapter and procedural rendering |
 | `lib/game/shot_trail.dart` | Fixed-interval trail sampling with reusable storage |
@@ -133,6 +144,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `test/motion_model_test.dart` | Movement continuity, easing, trail timing and statistics cases |
 | `test/results_widget_test.dart` | Personal-best, tied-replay and record preservation cases |
 | `test/keeper_challenge_test.dart` | Fire scoring, saves, buzzer shot, direct retry and keeper continuity |
+| `test/pro_keeper_test.dart` | Delayed reactions, committed reach, slides, pose contact, taunts and resets |
 | `assets/audio/` / `tool/generate_audio.py` | Original WAV effects and their generator |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 

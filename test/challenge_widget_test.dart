@@ -86,6 +86,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     await tapVisible(tester, 'PLAY STAGE 9  →');
+    expect(find.text('ELITE · Marks your last side'), findsOneWidget);
     await tapVisible(tester, 'START STAGE  →');
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 16));

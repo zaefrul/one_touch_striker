@@ -1,4 +1,5 @@
 import 'keeper_style.dart';
+import 'keeper_skill.dart';
 
 enum StageObjective { goals, corners, points }
 
@@ -27,6 +28,7 @@ class ChallengeStage {
     this.pattern = DefencePattern.sweep,
     this.timeLimit,
     this.keeper = KeeperStyle.sweeper,
+    this.keeperSkill = KeeperSkill.academy,
     this.fireChargeGoals = 2,
   });
 
@@ -44,6 +46,7 @@ class ChallengeStage {
   final DefencePattern pattern;
   final int? timeLimit;
   final KeeperStyle keeper;
+  final KeeperSkill keeperSkill;
   final int fireChargeGoals;
   final int pitchColor;
   final int stripeColor;
@@ -107,6 +110,7 @@ const challengeStages = [
     keeperRange: 100,
     keeper: KeeperStyle.sentinel,
     fireChargeGoals: 1,
+    keeperSkill: KeeperSkill.club,
     pitchColor: 0xff4d456e,
     stripeColor: 0xff584f7b,
   ),
@@ -122,6 +126,7 @@ const challengeStages = [
     keeperRange: 105,
     keeper: KeeperStyle.sentinel,
     timeLimit: 25,
+    keeperSkill: KeeperSkill.club,
     pitchColor: 0xff73552d,
     stripeColor: 0xff806136,
   ),
@@ -136,6 +141,7 @@ const challengeStages = [
     keeperSpeed: 1.30,
     keeperRange: 105,
     keeper: KeeperStyle.gambler,
+    keeperSkill: KeeperSkill.professional,
     defenders: 2,
     defenderSpeed: 1.15,
     pattern: DefencePattern.crossing,
@@ -153,6 +159,7 @@ const challengeStages = [
     keeperSpeed: 1.40,
     keeperRange: 108,
     keeper: KeeperStyle.gambler,
+    keeperSkill: KeeperSkill.professional,
     defenders: 2,
     defenderSpeed: 1.25,
     timeLimit: 30,
@@ -169,6 +176,7 @@ const challengeStages = [
     aimSpeed: 1.70,
     keeperSpeed: 1.50,
     keeperRange: 108,
+    keeperSkill: KeeperSkill.elite,
     defenders: 2,
     defenderSpeed: 1.40,
     pattern: DefencePattern.crossing,
@@ -187,6 +195,7 @@ const challengeStages = [
     keeperSpeed: 1.55,
     keeperRange: 108,
     keeper: KeeperStyle.sentinel,
+    keeperSkill: KeeperSkill.elite,
     defenders: 2,
     defenderSpeed: 1.40,
     pitchColor: 0xff433a70,
@@ -203,6 +212,7 @@ const challengeStages = [
     keeperSpeed: 1.60,
     keeperRange: 108,
     keeper: KeeperStyle.gambler,
+    keeperSkill: KeeperSkill.elite,
     defenders: 3,
     defenderSpeed: 1.40,
     pattern: DefencePattern.staggered,
@@ -219,6 +229,7 @@ const challengeStages = [
     aimSpeed: 1.95,
     keeperSpeed: 1.65,
     keeperRange: 110,
+    keeperSkill: KeeperSkill.worldClass,
     defenders: 2,
     defenderSpeed: 1.60,
     pattern: DefencePattern.crossing,
@@ -237,6 +248,7 @@ const challengeStages = [
     keeperSpeed: 1.75,
     keeperRange: 110,
     keeper: KeeperStyle.sentinel,
+    keeperSkill: KeeperSkill.worldClass,
     defenders: 3,
     defenderSpeed: 1.50,
     pattern: DefencePattern.staggered,
@@ -255,6 +267,7 @@ const challengeStages = [
     keeperSpeed: 1.85,
     keeperRange: 110,
     keeper: KeeperStyle.gambler,
+    keeperSkill: KeeperSkill.worldClass,
     defenders: 3,
     defenderSpeed: 1.65,
     timeLimit: 28,

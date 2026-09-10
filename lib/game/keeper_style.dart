@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
-/// Repeating, shot-independent movement. Rendering and collision detection both
-/// use MatchModel.keeperX; no keeper reacts to a hidden or future shot target.
+/// Repeating patrol preferences. Challenge keepers add delayed reactions to the
+/// visible flight in KeeperController; Classic uses these offsets directly.
 enum KeeperStyle {
   sweeper(
     'The Sweeper',

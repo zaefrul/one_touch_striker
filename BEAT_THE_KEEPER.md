@@ -44,8 +44,10 @@ These are scoring rules, not playtest results.
 Each has a name and tip in the briefing, a label on the map/pitch, and a distinct
 kit. `keeper_style.dart` defines deterministic offsets with continuous position
 and velocity at cycle/hold boundaries. Both drawing and collisions read the same
-model coordinate. Existing collision boxes remain approximations, as documented
-in `CHALLENGES.md`. Defenders, goals and timers stay configured per stage.
+model coordinate. The subsequent [progressive keeper update](PRO_KEEPERS.md)
+adds delayed dives, slides and learned coverage on top of those patrol styles,
+with shared articulated collision geometry. Classic and defender boxes retain
+their original approximations. Defenders, goals and timers stay configured per stage.
 
 ## Rematch and continuity
 
