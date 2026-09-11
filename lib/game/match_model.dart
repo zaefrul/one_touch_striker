@@ -4,6 +4,8 @@ import 'keeper_style.dart';
 import 'keeper_skill.dart';
 import 'keeper_controller.dart';
 import 'showdown.dart';
+import 'first_touch_guide.dart';
+import 'shot_failure.dart';
 
 enum MatchPhase {
   ready,
@@ -66,6 +68,31 @@ class MatchModel {
   bool leftCornerScored = false, rightCornerScored = false;
   bool shotAgainstRush = false;
   int rushGoals = 0;
+  bool _guidedFirstMatch = false;
+  ShotFailure? lastFailure;
+
+  bool get isGuidedFirstMatch => _guidedFirstMatch;
+  FirstTouchLesson get firstTouchLesson => onFire
+      ? FirstTouchLesson.fire
+      : goals == 0 ? FirstTouchLesson.aim : FirstTouchLesson.space;
+  String get firstTouchHint => switch (phase) {
+    MatchPhase.stageIntro => FirstTouchLesson.aim.instruction,
+    MatchPhase.aiming => lastFailure?.advice ?? firstTouchLesson.instruction,
+    MatchPhase.flying => 'Your tap locked the target. Watch the ball follow that line.',
+    MatchPhase.result => lastWasGoal
+        ? justChargedFire ? 'Two in a row! Your next shot scores double if it goes in.'
+            : 'Goal! Keep finding the open space to earn your first stars.'
+        : shotAdvice,
+    MatchPhase.stageCleared => 'First match cleared! Your stars unlock the next stage.',
+    MatchPhase.finished => retryAdvice,
+    MatchPhase.ready => '',
+  };
+  String get shotAdvice => lastFailure?.advice ?? '';
+  String get retryAdvice {
+    if (lastFailure != null) return lastFailure!.advice;
+    if (timeExpired) return 'Keep your shots moving. A shot released before zero can still finish.';
+    return stage?.tip ?? 'Watch the target dot and look for an open lane.';
+  }
 
   int get lives => 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
@@ -134,7 +161,8 @@ class MatchModel {
       StageObjective.corners => 'corner goal',
       StageObjective.points => 'point',
     } : stage!.unit;
-    return '$remaining more $unit ${remaining == 1 ? 'was' : 'were'} needed. ${stage!.showdown?.shortRule ?? stage!.tip}';
+    return '$remaining more $unit ${remaining == 1 ? 'was' : 'were'} needed.'
+        '${stage!.showdown == null ? '' : ' ${stage!.showdown!.shortRule}'}';
   }
   int get earnedStars => phase == MatchPhase.stageCleared ? lives : 0;
   bool get isFinalStage => stageIndex == challengeStages.length - 1;
@@ -142,7 +170,8 @@ class MatchModel {
       goals + misses == 0 ? 0 : (100 * goals / (goals + misses)).round();
   int get resolvedShots => goals + misses;
   double get motionScale => _motionScale;
-  bool get showTapCue => firstAim && phase == MatchPhase.aiming;
+  bool get showTapCue => phase == MatchPhase.aiming &&
+      (firstAim || (isGuidedFirstMatch && goals == 0));
   bool get onFire => isChallenge
       ? (phase == MatchPhase.flying ? shotIsFire : fireReady)
       : multiplier == 2;
@@ -198,10 +227,11 @@ class MatchModel {
     phase = MatchPhase.aiming;
   }
 
-  void prepareStage(int index) {
+  void prepareStage(int index, {bool guided = false}) {
     RangeError.checkValidIndex(index, challengeStages, 'index');
     stageIndex = index;
     _resetRun();
+    _guidedFirstMatch = guided && index == 0;
     secondsRemaining = stage!.timeLimit?.toDouble() ?? 0;
     phase = MatchPhase.stageIntro;
   }
@@ -219,7 +249,9 @@ class MatchModel {
         (phase != MatchPhase.finished && phase != MatchPhase.stageCleared)) {
       return;
     }
-    prepareStage(index);
+    // A first clear completes the guide. Failed attempts retain the coaching.
+    final guided = isGuidedFirstMatch && phase != MatchPhase.stageCleared;
+    prepareStage(index, guided: guided);
     startStage();
   }
 
@@ -231,6 +263,8 @@ class MatchModel {
 
   void _resetRun() {
     attemptId++;
+    _guidedFirstMatch = false;
+    lastFailure = null;
     stageStarted = false;
     leftCornerScored = rightCornerScored = shotAgainstRush = false;
     rushGoals = 0;
@@ -391,7 +425,7 @@ class MatchModel {
     }
     for (var i = 0; i < defenderCount; i++) {
       if (hitsBox(defenderX(i), defenderY(i), 17, 13)) {
-        finishShot(goal: false, text: 'BLOCKED!');
+        finishShot(goal: false, blocked: true, text: 'BLOCKED!');
         return;
       }
     }
@@ -456,11 +490,16 @@ class MatchModel {
       bool corner = false,
       bool post = false,
       bool keeperSave = false,
+      bool blocked = false,
       required String text}) {
     lastWasGoal = goal;
     lastWasCorner = corner;
     lastWasPost = post;
     lastWasKeeperSave = !goal && keeperSave;
+    lastFailure = goal ? null
+        : keeperSave ? ShotFailure.keeper
+            : blocked ? ShotFailure.defender
+                : post ? ShotFailure.post : ShotFailure.wide;
     if (isChallenge) {
       keeper.resolveShot(saved: lastWasKeeperSave, targetX: shotTargetX);
     }

@@ -26,6 +26,15 @@ final now requires a Fire corner finish and allows 34 active seconds. See
 [Rival Cup rules, save continuity and local checks](RIVAL_CUP.md). These changes
 are source-reviewed only; no builds, tests or workflows were run.
 
+**First-minute hook** makes guided Stage 1 the first Home action for players
+without a Stage 1 clear. Returning players get Continue for their next uncleared
+stage. Live instructions follow real goals and Fire charge; simulation-derived
+miss advice persists into the next aim, and a neutral ring marks the locked
+target. Retry/Next appears before detailed results, with new rewards close to
+the star award. See [first-session flow and local checks](FIRST_MINUTE.md).
+The guide uses normal match rules and the existing star save. Its effect on
+understanding, replay appeal and frame performance has not been measured.
+
 ## Run on your machine
 
 Install stable Flutter and the platform toolchain, then clone this repository:
@@ -131,6 +140,7 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Early challenge Fire Shots, visible charge and direct rematches
 - Four Rival Cup showdowns, permanent trophies and saved personal keeper records
 - Five star cosmetics, next-reward targets and a saved equipment collection
+- Guided first match, Home continuation, persistent miss corrections and a visible locked target
 - Preloaded sound effects, independent saved mute and lifecycle cleanup
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
 - Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
@@ -145,6 +155,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/showdown.dart` | Four additional showdown rules and stable trophy IDs |
+| `lib/game/first_touch_guide.dart` / `lib/game/shot_failure.dart` | First-match lessons and simulation-derived miss advice |
 | `lib/game/rival_ledger.dart` | Single-count challenge results and persistent keeper records/trophies |
 | `lib/game/star_rewards.dart` | Star thresholds, unlocks and persistent cosmetic selection |
 | `lib/game/keeper_style.dart` | Named keeper profiles and continuous movement patterns |
@@ -157,6 +168,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/game/playtest_trace.dart` | Opt-in local DevTools phase markers |
 | `lib/ui/challenge_panel.dart` | Stage map, briefings, clear and retry panels |
 | `lib/ui/star_rewards_panel.dart` | Next reward card and equipment collection |
+| `lib/ui/home_panel.dart` | First match, next-stage continuation and compact mode/reward entry |
 | `lib/ui/run_summary.dart` | Shared result statistics and personal-best badge |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
@@ -167,6 +179,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `test/keeper_challenge_test.dart` | Fire scoring, saves, buzzer shot, direct retry and keeper continuity |
 | `test/pro_keeper_test.dart` | Delayed reactions, committed reach, slides, pose contact, taunts and resets |
 | `test/rival_cup_test.dart` / `test/rival_cup_widget_test.dart` | Unexecuted showdown, record, legacy-save and equipment regression sources |
+| `test/first_touch_test.dart` / `test/first_touch_widget_test.dart` | Unexecuted guide, physical miss, quick-entry, retry and save-continuity sources |
 | `assets/audio/` / `tool/generate_audio.py` | Original WAV effects and their generator |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 

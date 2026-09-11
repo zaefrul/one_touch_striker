@@ -12,6 +12,7 @@ import 'game/star_rewards.dart';
 import 'ui/challenge_panel.dart';
 import 'ui/run_summary.dart';
 import 'ui/star_rewards_panel.dart';
+import 'ui/home_panel.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -264,7 +265,19 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     _newRewards = const [];
     _classicRunActive = false;
     audio.stopAll();
-    game.prepareStage(index);
+    game.prepareStage(index, guided: index == 0 && progress.starsFor(0) == 0);
+  }
+
+  void _quickPlay() {
+    if (!_progressLoaded || model.isPlaying) return;
+    if (progress.completed) {
+      _stageMap();
+      return;
+    }
+    final index = progress.nextStageIndex;
+    _selectStage(index);
+    // Stage 1 teaches through live shots. Later new stages retain their briefing.
+    if (index == 0) game.startStage();
   }
 
   void _retryStage() {
@@ -500,6 +513,12 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                               textAlign: TextAlign.center,
                               style: const TextStyle(
                                   letterSpacing: 1, fontSize: 11)),
+                          if (model.lastFailure != null) ...[
+                            const SizedBox(height: 8),
+                            Text(model.shotAdvice, textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12,
+                                    color: Colors.white70, height: 1.4)),
+                          ],
                         ]),
                       ))),
                     if (ready || finished || stageOverlay || game.matchPaused)
@@ -555,6 +574,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
           recordsAvailable: _rivalHistoryAvailable,
           onSelect: _selectStage, onBack: _home, onRewards: _openRewards);
     }
+    if (ready) {
+      return HomePanel(progress: progress, loaded: _progressLoaded,
+          onQuickPlay: _quickPlay, onStages: _stageMap,
+          onClassic: _startClassic, onRewards: _openRewards);
+    }
     if (model.isChallenge && !game.matchPaused) {
       return StagePanel(
         model: model,
@@ -570,133 +594,75 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       );
     }
     return Column(mainAxisSize: MainAxisSize.min, children: [
-        Text(
-            ready
-                ? 'YOUR NEXT GREAT GOAL'
-                : finished
-                    ? 'FULL TIME'
-                    : 'TAKE A BREATHER',
-            style: const TextStyle(
-                color: lime,
-                fontSize: 10,
-                letterSpacing: 2,
-                fontWeight: FontWeight.bold)),
-        const SizedBox(height: 16),
-        Text(
-            ready
-                ? 'ONE TAP.\nALL GLORY.'
-                : finished
-                    ? '${model.score}'
-                    : 'PAUSED',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-                fontSize: finished ? 78 : 43,
-                fontWeight: FontWeight.w900,
-                height: 1.02,
-                letterSpacing: -1.5)),
-        const SizedBox(height: 16),
-        Text(
-            ready
-                ? 'Follow the arrow. Pick your moment.\nBeat the keeper with a single tap.'
-                : finished
-                    ? 'Best $best · Aim for ${best + 1} points next.'
-                    : model.isChallenge
-                        ? '${model.stage!.name}\nYour objective and clock are paused.'
-                        : 'Your match is waiting.',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white70, height: 1.6, fontSize: 14)),
+      Text(finished ? 'FULL TIME' : 'TAKE A BREATHER',
+          style: const TextStyle(color: lime, fontSize: 10, letterSpacing: 2,
+              fontWeight: FontWeight.bold)),
+      const SizedBox(height: 16),
+      Text(finished ? '${model.score}' : 'PAUSED', textAlign: TextAlign.center,
+          style: TextStyle(fontSize: finished ? 78 : 43,
+              fontWeight: FontWeight.w900, height: 1.02, letterSpacing: -1.5)),
+      const SizedBox(height: 16),
+      Text(finished ? 'Best $best · Aim for ${best + 1} points next.'
+          : model.isChallenge
+              ? '${model.stage!.name}\nYour objective and clock are paused.'
+              : 'Your match is waiting.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white70, height: 1.6, fontSize: 14)),
+      if (finished && model.lastFailure != null) ...[
+        const SizedBox(height: 12),
+        Text(model.retryAdvice, textAlign: TextAlign.center,
+            style: const TextStyle(color: lime, height: 1.4, fontSize: 13)),
+      ],
+      const SizedBox(height: 18),
+      SizedBox(width: double.infinity,
+          child: FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: lime, foregroundColor: ink,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+            onPressed: finished ? _startClassic : _pause,
+            child: Padding(padding: const EdgeInsets.symmetric(vertical: 18),
+                child: Text(finished ? 'PLAY AGAIN  ↻' : 'RESUME  →',
+                    style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+          )),
+      if (finished) ...[
         const SizedBox(height: 22),
-        if (finished) ...[
-          RunSummary(model: model, personalBest: _personalBest,
-              previousBest: _bestBeforeRun),
-          const SizedBox(height: 22),
-        ],
-        if (ready) ...[
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed: _progressLoaded ? _stageMap : null,
-              icon: const Icon(Icons.emoji_events_outlined),
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(_progressLoaded ? 'PLAY CHALLENGES' : 'LOADING PROGRESS…',
-                    style: const TextStyle(fontWeight: FontWeight.w900)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text('Rival Cup · ${challengeStages.length} stages · ${progress.totalStars}/${challengeStages.length * 3} stars',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 11, color: Colors.white60)),
-          const SizedBox(height: 10),
-          NextRewardCard(stars: progress.totalStars, onOpen: _openRewards),
-          TextButton(onPressed: _progressLoaded ? _openRewards : null,
-              child: const Text('STAR REWARDS')),
-          const SizedBox(height: 20),
-          const Text('CLASSIC · CHASE YOUR BEST SCORE',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 10, color: Colors.white54, letterSpacing: 1)),
-          const SizedBox(height: 8),
-        ],
-        SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: FilledButton(
-              style: FilledButton.styleFrom(
-                  backgroundColor: ready ? Colors.white10 : lime,
-                  foregroundColor: ready ? Colors.white : ink,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16))),
-              onPressed: () {
-                if (game.matchPaused && !finished && !ready) {
-                  _pause();
-                } else {
-                  _startClassic();
-                }
-              },
-              child: Text(
-                  ready
-                      ? 'LET’S PLAY  →'
-                      : finished
-                          ? 'PLAY AGAIN  ↻'
-                          : 'RESUME  →',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-            )),
-        if (!ready && !finished)
-          Padding(
-              padding: const EdgeInsets.only(top: 10),
-              child: TextButton(
-                onPressed: _endRun,
+        RunSummary(model: model, personalBest: _personalBest, previousBest: _bestBeforeRun),
+        TextButton(onPressed: _home, child: const Text('HOME & CHALLENGES')),
+      ] else ...[
+        Padding(padding: const EdgeInsets.only(top: 10),
+            child: TextButton(onPressed: _endRun,
                 child: Text(model.isChallenge ? 'END STAGE' : 'END RUN',
-                    style: const TextStyle(
-                        color: Colors.white54,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.6)),
-              )),
-        if (!ready && !finished && model.isChallenge && !model.objectiveMet)
+                    style: const TextStyle(color: Colors.white54,
+                        fontWeight: FontWeight.w800, letterSpacing: 1.6)))),
+        if (model.isChallenge && !model.objectiveMet)
           const Text('Ending this attempt gives the keeper a win.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, color: Colors.white54)),
-        if (finished)
-          TextButton(onPressed: _home, child: const Text('HOME & CHALLENGES')),
-        if (ready)
-          const Padding(
-              padding: EdgeInsets.only(top: 14),
-              child: Text('No timer. Three misses end your run.',
-                  style: TextStyle(fontSize: 11, color: Colors.white54))),
-        if (ready) ...[
-          const SizedBox(height: 20),
-          const Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            _Rule('GOAL', '+1'),
-            SizedBox(width: 28),
-            _Rule('CORNER', '+3'),
-            SizedBox(width: 28),
-            _Rule('MISSES', '3'),
-          ]),
-        ],
-      ]);
+      ],
+    ]);
+  }
+
+  String _playHint() {
+    if (!storageAvailable) return 'PROGRESS SAVING UNAVAILABLE';
+    if (model.isGuidedFirstMatch) return model.firstTouchHint;
+    if ((model.phase == MatchPhase.aiming || model.phase == MatchPhase.result) &&
+        model.lastFailure != null) return model.shotAdvice;
+    final stage = model.stage;
+    if (stage != null) {
+      if (model.timeExpired && model.phase == MatchPhase.flying) {
+        return 'BUZZER SHOT — THIS ONE STILL COUNTS.';
+      }
+      if (stage.showdown != null) return model.showdownStatus;
+      if (stage.objective == StageObjective.corners) {
+        return 'THE GLOWING CORNERS ADVANCE THIS STAGE.';
+      }
+      return model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill;
+    }
+    if (model.phase == MatchPhase.flying) {
+      return model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…';
+    }
+    if (model.showTapCue) return 'TAP THE GLOW. LOCK THE ARROW.';
+    if (model.lastChance) return 'LAST CHANCE. MAKE IT COUNT.';
+    return model.onFire ? 'ON FIRE. GO FOR THE CORNER.' : 'TIME THE ARROW. TAP THE PITCH.';
   }
 
   Widget _footer() {
@@ -718,22 +684,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     final objective = stage == null
         ? (model.onFire ? 'ON FIRE · 2× POINTS' : '${model.streak}/5 STREAK TO 2×')
         : '${model.objectiveProgress}/${stage.target} ${stage.unit.toUpperCase()}';
-    final hint = !storageAvailable
-        ? 'PROGRESS SAVING UNAVAILABLE'
-        : stage != null
-            ? model.timeExpired && model.phase == MatchPhase.flying
-                ? 'BUZZER SHOT — THIS ONE STILL COUNTS.'
-                : stage.showdown != null
-                    ? model.showdownStatus
-                    : stage.objective == StageObjective.corners
-                        ? 'THE GLOWING CORNERS ADVANCE THIS STAGE.'
-                        : model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill
-            : model.phase == MatchPhase.flying
-                ? (model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…')
-                : model.showTapCue ? 'TAP THE GLOW. LOCK THE ARROW.'
-                    : model.lastChance ? 'LAST CHANCE. MAKE IT COUNT.'
-                        : model.onFire ? 'ON FIRE. GO FOR THE CORNER.'
-                            : 'TIME THE ARROW. TAP THE PITCH.';
+    final hint = _playHint();
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 10, 22, 18),
       child: Column(children: [
@@ -784,24 +735,25 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
           ]),
         ],
         const SizedBox(height: 12),
-        Text(hint, textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 10, letterSpacing: 1.1, color: Colors.white60)),
+        if (model.isGuidedFirstMatch)
+          ConstrainedBox(
+            // Keep normal-sized guide copy from resizing the pitch between
+            // shots; allow larger accessibility text to grow without clipping.
+            constraints: const BoxConstraints(minHeight: 72),
+            child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Text(model.phase == MatchPhase.aiming
+                  ? model.firstTouchLesson.title : 'GUIDED FIRST MATCH',
+                  style: const TextStyle(fontSize: 10, color: lime,
+                      fontWeight: FontWeight.w800, letterSpacing: 1)),
+              const SizedBox(height: 4),
+              Text(hint, textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
+            ])),
+          )
+        else
+          Text(hint, textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10, letterSpacing: 1.1, color: Colors.white60)),
       ]),
     );
   }
-}
-
-class _Rule extends StatelessWidget {
-  const _Rule(this.label, this.value);
-  final String label;
-  final String value;
-  @override
-  Widget build(BuildContext context) => Column(children: [
-        Text(value,
-            style: const TextStyle(
-                color: lime, fontSize: 25, fontWeight: FontWeight.w900)),
-        Text(label,
-            style: const TextStyle(
-                color: Colors.white54, letterSpacing: 1.4, fontSize: 9)),
-      ]);
 }

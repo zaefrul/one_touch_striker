@@ -8,6 +8,9 @@ has been validated: these are initial balance values for the owner's playtest.
 ## Player flow
 
 Home → PLAY CHALLENGES → stage map → briefing → START STAGE → play → clear or retry.
+The [first-minute update](FIRST_MINUTE.md) also adds Home → PLAY FIRST MATCH →
+guided Stage 1 for an uncleared first stage, and Home → CONTINUE → next-stage
+briefing for returning players. These routes share the same rules and saves.
 Only cleared stages unlock the next one. All unlocked stages remain replayable.
 Three misses end the current attempt; timed stages also end when the clock
 expires. Retry now starts that stage immediately with three fresh chances, a full

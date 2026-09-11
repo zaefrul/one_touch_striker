@@ -154,6 +154,21 @@ class StagePanel extends StatelessWidget {
     final rematchTarget = progress.starsFor(model.stageIndex!) < 3
         ? 'Rematch target: clear with no misses for 3 stars.'
         : 'Rematch target: another perfect clear.';
+    final primaryAction = SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: intro ? onStart : cleared ? onNext : onRetry,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Text(intro
+                ? 'START STAGE  →'
+                : cleared
+                    ? complete ? 'EXPLORE STAGES  →' : 'NEXT STAGE  →'
+                    : 'RETRY STAGE  ↻',
+                style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
+          ),
+        ),
+      );
     return Column(mainAxisSize: MainAxisSize.min, children: [
       _Eyebrow(intro
           ? 'STAGE ${model.level} / ${challengeStages.length} · ${stage.showdown?.title.toUpperCase() ?? stage.skill}'
@@ -206,6 +221,24 @@ class StagePanel extends StatelessWidget {
             style: TextStyle(color: accent, fontWeight: FontWeight.w900, letterSpacing: 1)),
         const SizedBox(height: 10),
       ],
+      if (cleared && newRewards.isNotEmpty) ...[
+        const SizedBox(height: 16),
+        const Text('NEW LOOK UNLOCKED!',
+            style: TextStyle(color: Color(0xffffc857), fontWeight: FontWeight.w900)),
+        for (final reward in newRewards)
+          Padding(padding: const EdgeInsets.only(top: 6),
+              child: Text(reward.title, style: const TextStyle(fontWeight: FontWeight.w800))),
+        TextButton(onPressed: onRewards, child: const Text('EQUIP YOUR REWARD')),
+      ],
+      if (!intro) ...[
+        if (!cleared) ...[
+          Text(model.retryAdvice, textAlign: TextAlign.center,
+              style: TextStyle(color: accent, fontSize: 13, height: 1.4)),
+          const SizedBox(height: 12),
+        ],
+        primaryAction,
+        const SizedBox(height: 18),
+      ],
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -257,15 +290,6 @@ class StagePanel extends StatelessWidget {
         ])
       else
         RunSummary(model: model),
-      if (cleared && newRewards.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        const Text('NEW LOOK UNLOCKED!',
-            style: TextStyle(color: Color(0xffffc857), fontWeight: FontWeight.w900)),
-        for (final reward in newRewards)
-          Padding(padding: const EdgeInsets.only(top: 6),
-              child: Text(reward.title, style: const TextStyle(fontWeight: FontWeight.w800))),
-        TextButton(onPressed: onRewards, child: const Text('EQUIP YOUR REWARD')),
-      ],
       const SizedBox(height: 22),
       if (!intro && !cleared) ...[
         Text(rematchTarget,
@@ -273,21 +297,7 @@ class StagePanel extends StatelessWidget {
             style: TextStyle(color: accent, fontSize: 12, height: 1.4)),
         const SizedBox(height: 10),
       ],
-      SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: intro ? onStart : cleared ? onNext : onRetry,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(intro
-                ? 'START STAGE  →'
-                : cleared
-                    ? complete ? 'EXPLORE STAGES  →' : 'NEXT STAGE  →'
-                    : 'RETRY STAGE  ↻',
-                style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1)),
-          ),
-        ),
-      ),
+      if (intro) primaryAction,
       if (cleared) ...[
         const SizedBox(height: 14),
         Text(rematchTarget,

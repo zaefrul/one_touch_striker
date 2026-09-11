@@ -96,6 +96,10 @@ class StrikerGame extends FlameGame {
   StarReward _netSkin = StarReward.standardNet;
   StarReward _pitchSkin = StarReward.dayPitch;
   final Paint _neonHaloPaint = Paint()..color = const Color(0x44d9ff6a);
+  final Paint _lockedTargetPaint = Paint()
+    ..color = const Color(0xbbeef8df)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
   final RRect _pitchBorder = RRect.fromRectAndRadius(
       const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
   final List<Offset> _confettiVelocities = List.generate(40, (i) {
@@ -197,9 +201,9 @@ class StrikerGame extends FlameGame {
     _resetPresentation();
   }
 
-  void prepareStage(int index) {
+  void prepareStage(int index, {bool guided = false}) {
     trace.event('stage.prepare', {'stage': index + 1});
-    model.prepareStage(index);
+    model.prepareStage(index, guided: guided);
     _resetPresentation();
   }
 
@@ -348,6 +352,10 @@ class StrikerGame extends FlameGame {
     }
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
       _aim(canvas);
+    } else if (model.phase == MatchPhase.flying || model.phase == MatchPhase.result) {
+      // Keep the accepted target visible even when the keeper/defender stops
+      // the ball early. This records aim, not a prediction of a goal.
+      canvas.drawCircle(Offset(model.shotTargetX, MatchModel.goalY), 10, _lockedTargetPaint);
     }
     final trailPaints = model.onFire ? _fireTrailPaints : _trailPaints;
     for (var i = 0; i < _trail.length; i++) {

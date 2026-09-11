@@ -132,6 +132,13 @@ new map and collection use the existing scrollable overlay. Compare default and
 night looks on the same phone; no frame-time improvement or cost was measured
 for this source update. See `RIVAL_CUP.md` for its local handoff.
 
+The first-minute update adds event-driven coaching and miss text, a reusable
+paint for the locked-target ring, and earlier replay actions. The normal guide
+copy has reserved minimum height, with larger text allowed to grow. There is no
+new ticker or per-frame Flutter notification. Check first-entry text layout,
+feedback and retry on a small physical phone; these source changes are not
+evidence that the earlier stutter is fixed. See `FIRST_MINUTE.md`.
+
 ## Regression cases prepared for local execution
 
 `test/motion_model_test.dart` covers motion continuity, easing, active timers,
