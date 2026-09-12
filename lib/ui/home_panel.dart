@@ -33,8 +33,8 @@ class HomePanel extends StatelessWidget {
               height: 1.02, letterSpacing: -1.2)),
       const SizedBox(height: 12),
       Text(firstMatch
-          ? 'Tap anywhere on the pitch.\nThe arrow sets your shot direction.'
-          : 'Pick your moment. Beat your next rival.',
+          ? 'Touch to aim. Drag to bend.\nRelease to beat the keeper.'
+          : 'Touch to aim. Drag to bend. Release to shoot.',
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 14)),
       const SizedBox(height: 16),

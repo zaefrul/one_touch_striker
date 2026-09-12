@@ -20,10 +20,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('ONE TAP.\nALL GLORY.'), findsNothing);
     expect(find.byTooltip('Pause'), findsOneWidget);
-    expect(find.text('TAP THE GLOW. LOCK THE ARROW.'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel(RegExp('Aiming')));
+    expect(find.text('TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel(RegExp('Football pitch')));
     await tester.pump();
-    expect(find.text('TAP THE GLOW. LOCK THE ARROW.'), findsNothing);
+    expect(find.text('TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT'), findsNothing);
     expect(find.text('SHOT AWAY…'), findsOneWidget);
   });
 

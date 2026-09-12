@@ -13,6 +13,7 @@ import 'ui/challenge_panel.dart';
 import 'ui/run_summary.dart';
 import 'ui/star_rewards_panel.dart';
 import 'ui/home_panel.dart';
+import 'ui/shot_gesture_surface.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -224,10 +225,15 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _shoot() {
-    // Lock the aim before issuing the platform haptic call.
-    if (!game.shoot()) {
-      return;
-    }
+    if (game.shoot()) _kickFeedback();
+  }
+
+  void _releaseShot() {
+    if (game.releaseShot()) _kickFeedback();
+  }
+
+  void _kickFeedback() {
+    // The simulation launches before any audio or platform haptic work.
     audio.play(ShotSound.kick);
     if (haptics) {
       game.trace.event('haptic.tap');
@@ -466,20 +472,14 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                 ),
                 Expanded(
                   child: Stack(fit: StackFit.expand, children: [
-                    ExcludeSemantics(
-                      excluding: !model.isPlaying || game.matchPaused,
-                      child: Semantics(
-                        label: model.showTapCue
-                            ? 'Aiming. Tap the pitch to lock the arrow. The ball shoots where the arrow points, not where you touch.'
-                            : 'Football pitch. Tap to shoot in the arrow direction.',
-                        button: true,
-                        onTap: _shoot,
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTapDown: (_) => _shoot(),
-                          child: _pitch,
-                        ),
-                      ),
+                    ShotGestureSurface(
+                      enabled: model.phase == MatchPhase.aiming && !game.matchPaused,
+                      onBegin: game.beginShot,
+                      onDrag: game.adjustCurve,
+                      onRelease: _releaseShot,
+                      onCancel: game.cancelShot,
+                      onAccessibleShot: _shoot,
+                      child: _pitch,
                     ),
                     if (model.isPlaying &&
                         !game.matchPaused &&
@@ -660,9 +660,10 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     if (model.phase == MatchPhase.flying) {
       return model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…';
     }
-    if (model.showTapCue) return 'TAP THE GLOW. LOCK THE ARROW.';
+    if (model.showTapCue) return 'TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT';
     if (model.lastChance) return 'LAST CHANCE. MAKE IT COUNT.';
-    return model.onFire ? 'ON FIRE. GO FOR THE CORNER.' : 'TIME THE ARROW. TAP THE PITCH.';
+    return model.onFire ? 'ON FIRE. GO FOR THE CORNER.'
+        : 'TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT';
   }
 
   Widget _footer() {

@@ -115,7 +115,8 @@ class KeeperController {
       _fromX = pose.x;
       _fromY = pose.y;
       _endY = homeY + (_rushShot ? skill.rushDistance : 0);
-      // Extrapolate the already visible straight flight, not the aiming arrow.
+      // Extrapolate the visible travel so far, without access to the intended
+      // target or spin. A late bend can beat this committed early estimate.
       final observedX = launchX +
           (ballX - launchX) * (launchY - _endY) / travelled;
       final reach = skill.diveReach * (_rushShot ? .6 : 1);

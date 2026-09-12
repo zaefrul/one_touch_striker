@@ -70,15 +70,16 @@ pressing Play. The optional `Striker:` spans/markers identify:
 
 | Marker | Meaning |
 | --- | --- |
-| `aiming.first` / `aiming.repeat` | Waiting for the tap |
-| `tap.accepted` | The target has been locked |
+| `aiming.first` / `aiming.repeat` | Waiting for input or holding a prepared shot |
+| `shot.prepare` | Touch captured the initial direction; ball has not launched |
+| `shot.released` | Spin and target locked and ball launched; includes spin and shot number |
 | `shot.first` / `shot.repeat` | First versus subsequent flight |
 | `feedback.goal` / `feedback.miss` | Goal, save, block or miss feedback |
 | `classic.start-or-restart` | Starting/restarting Classic |
 | `stage.prepare` / `stage.start` / `stage.retry` | Briefings, starting and direct retries |
 | `paused` / `results` / `stage.cleared` | Pause and end panels |
 | `storage.load.*` / `save.best_score.*` | Loading and best-score write boundaries |
-| `haptic.tap` / `haptic.result` | Platform haptic dispatch |
+| `haptic.tap` / `haptic.result` | Platform haptic dispatch after launch or result |
 
 These use [Dart timeline tasks](https://api.dart.dev/dart-developer/TimelineTask-class.html)
 and [instant events](https://api.dart.dev/dart-developer/Timeline/instantSync.html).
@@ -138,6 +139,20 @@ copy has reserved minimum height, with larger text allowed to grow. There is no
 new ticker or per-frame Flutter notification. Check first-entry text layout,
 feedback and retry on a small physical phone; these source changes are not
 evidence that the earlier stutter is fixed. See `FIRST_MINUTE.md`.
+
+## Curve input source update
+
+Touch now prepares the shot; release launches it before kick audio or haptics.
+Sideways movement changes simulation values without a Flutter notification.
+The existing render loop draws the preview with reused paint/path and five
+preloaded labels. The preview and ball contact share the same curve calculation.
+No new ticker, dependency, asset, per-frame log or storage write is introduced.
+
+Local profiling should distinguish press feedback, continuous drag, release,
+flight and results. The earlier `tap.accepted` marker is replaced by
+`shot.prepare` and `shot.released`. No performance measurements, app runs,
+analyzer, tests, builds or workflows were executed for this source update.
+See `CURVE_SHOTS.md` for the cancellation and gesture handoff.
 
 ## Regression cases prepared for local execution
 

@@ -10,6 +10,7 @@ import 'keeper_pose.dart';
 import 'star_rewards.dart';
 import 'playtest_trace.dart';
 import 'shot_trail.dart';
+import 'shot_curve.dart';
 
 class StrikerGame extends FlameGame {
   StrikerGame(this.model,
@@ -23,6 +24,7 @@ class StrikerGame extends FlameGame {
   bool get matchPaused => _matchPaused;
   set matchPaused(bool value) {
     if (_matchPaused != value) {
+      if (value) model.cancelShot();
       _matchPaused = value;
       _syncTrace();
     }
@@ -61,6 +63,15 @@ class StrikerGame extends FlameGame {
     ..strokeWidth = 3
     ..strokeCap = StrokeCap.round;
   final Paint _aimDotPaint = Paint()..color = const Color(0xffd9ff6a);
+  final Paint _wideDotPaint = Paint()..color = const Color(0xffff777a);
+  final Paint _spinTrackPaint = Paint()
+    ..color = const Color(0x66efffe2)
+    ..strokeWidth = 2
+    ..strokeCap = StrokeCap.round;
+  final Paint _spinFillPaint = Paint()
+    ..color = const Color(0xffd9ff6a)
+    ..strokeWidth = 4
+    ..strokeCap = StrokeCap.round;
   final Paint _aimRingPaint = Paint()
     ..color = const Color(0x55d9ff6a)
     ..style = PaintingStyle.stroke
@@ -116,6 +127,9 @@ class StrikerGame extends FlameGame {
       _painterFor('${i + 4}', 11, const Color(0xff123c33), 0);
     }
     _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
+    for (final cue in ShotCurve.releaseLabels) {
+      _painterFor(cue, 10, const Color(0xffd9ff6a), 1);
+    }
     _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
     _painterFor('FIRE SHOT', 13, const Color(0xffd9ff6a), 3);
     _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
@@ -238,12 +252,31 @@ class StrikerGame extends FlameGame {
     onChanged();
   }
 
-  bool shoot() {
-    if (!matchPaused && model.shoot()) {
+  bool beginShot() {
+    if (matchPaused || !model.beginShot()) return false;
+    trace.event('shot.prepare');
+    return true;
+  }
+
+  void adjustCurve(double dragX) {
+    if (!matchPaused) model.adjustCurve(dragX);
+  }
+
+  // No Flutter notification: safe when a pointer is cancelled during layout,
+  // pause, or widget disposal. The existing game loop paints the next state.
+  void cancelShot() => model.cancelShot();
+
+  bool releaseShot() => _acceptShot(!matchPaused && model.releaseShot());
+
+  bool shoot() => _acceptShot(!matchPaused && model.shoot());
+
+  bool _acceptShot(bool accepted) {
+    if (accepted) {
       _kickTime = .14;
       _trail.clear();
       _previous = model.phase;
-      trace.event('tap.accepted', {'shot': model.resolvedShots + 1});
+      trace.event('shot.released', {'shot': model.resolvedShots + 1,
+          'spin': model.shotSpin});
       _syncTrace();
       onChanged();
       return true;
@@ -355,7 +388,7 @@ class StrikerGame extends FlameGame {
     } else if (model.phase == MatchPhase.flying || model.phase == MatchPhase.result) {
       // Keep the accepted target visible even when the keeper/defender stops
       // the ball early. This records aim, not a prediction of a goal.
-      canvas.drawCircle(Offset(model.shotTargetX, MatchModel.goalY), 10, _lockedTargetPaint);
+      _targetDot(canvas, model.shotTargetX, locked: true);
     }
     final trailPaints = model.onFire ? _fireTrailPaints : _trailPaints;
     for (var i = 0; i < _trail.length; i++) {
@@ -555,6 +588,10 @@ class StrikerGame extends FlameGame {
   }
 
   void _aim(Canvas c) {
+    if (model.isPreparingShot) {
+      _preparedAim(c);
+      return;
+    }
     final dx = model.aimX - 200;
     const dy = 100 - 548.0;
     final length = math.sqrt(dx * dx + dy * dy);
@@ -572,13 +609,67 @@ class StrikerGame extends FlameGame {
       ..moveTo(tip.dx, tip.dy)
       ..lineTo(tip.dx - ux * 13 + uy * 7, tip.dy - uy * 13 - ux * 7);
     c.drawPath(_aimPath, _aimPaint);
-    c.drawCircle(Offset(model.aimX, 100), 5, _aimDotPaint);
+    _targetDot(c, model.aimX);
     c.drawCircle(
         const Offset(200, 548),
         (model.showTapCue ? 24 : 20) + math.sin(model.clock * 3) * 2,
         _aimRingPaint);
     if (model.showTapCue) {
       _label(c, 'TAP', 200, 575, 12, const Color(0xffd9ff6a), spacing: 2.5);
+    }
+  }
+
+  void _preparedAim(Canvas c) {
+    // Sample only the first part of the same trajectory used for collisions.
+    // Reuse the path and finite label cache; dragging adds no HUD rebuilds.
+    _aimPath.reset();
+    for (var i = 1; i <= 16; i++) {
+      final p = i / 25;
+      final x = model.previewXAt(p);
+      final y = MatchModel.ballStartY + (MatchModel.goalY - MatchModel.ballStartY) * p;
+      if (i == 1) { _aimPath.moveTo(x, y); } else { _aimPath.lineTo(x, y); }
+    }
+    final x = model.previewXAt(.64);
+    const y = MatchModel.ballStartY + (MatchModel.goalY - MatchModel.ballStartY) * .64;
+    final dx = x - model.previewXAt(.60);
+    const dy = (MatchModel.goalY - MatchModel.ballStartY) * .04;
+    final length = math.sqrt(dx * dx + dy * dy);
+    final ux = dx / length, uy = dy / length;
+    _aimPath
+      ..moveTo(x - ux * 13 - uy * 7, y - uy * 13 + ux * 7)
+      ..lineTo(x, y)
+      ..lineTo(x - ux * 13 + uy * 7, y - uy * 13 - ux * 7);
+    c.drawPath(_aimPath, _aimPaint);
+    _targetDot(c, model.previewTargetX);
+    c.drawCircle(const Offset(200, 548), 25, _aimRingPaint);
+    _label(c, ShotCurve.releaseLabel(model.preparedSpin),
+        200, 575, 10, const Color(0xffd9ff6a), spacing: 1);
+    c.drawLine(const Offset(152, 602), const Offset(248, 602), _spinTrackPaint);
+    c.drawLine(const Offset(200, 597), const Offset(200, 607), _spinTrackPaint);
+    if (model.preparedSpin != 0) {
+      c.drawLine(const Offset(200, 602),
+          Offset(200 + model.preparedSpin * 48, 602), _spinFillPaint);
+    }
+  }
+
+  void _targetDot(Canvas c, double targetX, {bool locked = false}) {
+    final visibleX = targetX.clamp(24.0, 376.0).toDouble();
+    if (locked) {
+      c.drawCircle(Offset(visibleX, MatchModel.goalY), 10, _lockedTargetPaint);
+    } else {
+      c.drawCircle(Offset(visibleX, MatchModel.goalY), 5,
+          MatchModel.isOnTarget(targetX) ? _aimDotPaint : _wideDotPaint);
+    }
+    // An off-pitch target gets an outward marker; only this UI marker is
+    // clamped. The actual ball can still travel wide beyond the visible field.
+    if (visibleX != targetX) {
+      final direction = targetX < visibleX ? -1.0 : 1.0;
+      _aimPath
+        ..reset()
+        ..moveTo(visibleX, MatchModel.goalY - 6)
+        ..lineTo(visibleX + direction * 7, MatchModel.goalY)
+        ..lineTo(visibleX, MatchModel.goalY + 6);
+      c.drawPath(_aimPath, _lockedTargetPaint);
     }
   }
 

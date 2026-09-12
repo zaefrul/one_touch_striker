@@ -6,6 +6,7 @@ import 'keeper_controller.dart';
 import 'showdown.dart';
 import 'first_touch_guide.dart';
 import 'shot_failure.dart';
+import 'shot_curve.dart';
 
 enum MatchPhase {
   ready,
@@ -70,6 +71,16 @@ class MatchModel {
   int rushGoals = 0;
   bool _guidedFirstMatch = false;
   ShotFailure? lastFailure;
+  bool _preparingShot = false;
+  double _preparedAimX = ballStartX, _preparedSpin = 0;
+  double shotSpin = 0;
+
+  bool get isPreparingShot => _preparingShot;
+  double get preparedSpin => _preparedSpin;
+  double get previewTargetX => _preparingShot
+      ? ShotCurve.targetFor(_preparedAimX, _preparedSpin) : aimX;
+  double previewXAt(double progress) => ShotCurve.xAt(ballStartX,
+      previewTargetX, _preparingShot ? _preparedSpin : 0.0, progress);
 
   bool get isGuidedFirstMatch => _guidedFirstMatch;
   FirstTouchLesson get firstTouchLesson => onFire
@@ -78,7 +89,7 @@ class MatchModel {
   String get firstTouchHint => switch (phase) {
     MatchPhase.stageIntro => FirstTouchLesson.aim.instruction,
     MatchPhase.aiming => lastFailure?.advice ?? firstTouchLesson.instruction,
-    MatchPhase.flying => 'Your tap locked the target. Watch the ball follow that line.',
+    MatchPhase.flying => 'Shot released. Watch the ball follow the path you set.',
     MatchPhase.result => lastWasGoal
         ? justChargedFire ? 'Two in a row! Your next shot scores double if it goes in.'
             : 'Goal! Keep finding the open space to earn your first stars.'
@@ -263,6 +274,8 @@ class MatchModel {
 
   void _resetRun() {
     attemptId++;
+    cancelShot();
+    shotSpin = 0;
     _guidedFirstMatch = false;
     lastFailure = null;
     stageStarted = false;
@@ -290,6 +303,7 @@ class MatchModel {
   }
 
   void endRun() {
+    cancelShot();
     if (!isPlaying) {
       return;
     }
@@ -303,6 +317,8 @@ class MatchModel {
   }
 
   void resetBall() {
+    cancelShot();
+    shotSpin = 0;
     ballX = ballStartX;
     ballY = ballStartY;
     ballAngle = 0;
@@ -310,11 +326,43 @@ class MatchModel {
     shotAgainstRush = false;
   }
 
-  bool shoot() {
+  bool beginShot() {
+    if (_preparingShot || phase != MatchPhase.aiming || timeExpired) return false;
+    _preparedAimX = aimX;
+    _preparedSpin = 0;
+    _preparingShot = true;
+    return true;
+  }
+
+  void adjustCurve(double dragX) {
+    if (_preparingShot && phase == MatchPhase.aiming && !timeExpired) {
+      _preparedSpin = ShotCurve.spinForDrag(dragX);
+    }
+  }
+
+  void cancelShot() {
+    _preparingShot = false;
+    _preparedSpin = 0;
+  }
+
+  bool releaseShot() {
+    if (!_preparingShot) return false;
+    final targetX = previewTargetX;
+    final spin = _preparedSpin;
+    cancelShot();
+    return _launchShot(targetX, spin);
+  }
+
+  /// Immediate straight shot for accessibility activation and model callers.
+  /// A semantic activation cannot steal an existing physical pointer's draft.
+  bool shoot() => !_preparingShot && _launchShot(aimX, 0);
+
+  bool _launchShot(double targetX, double spin) {
     if (phase != MatchPhase.aiming || timeExpired) {
       return false;
     }
-    shotTargetX = aimX;
+    shotTargetX = targetX;
+    shotSpin = spin;
     shotIsFire = fireReady;
     shotAgainstRush = isChallenge && keeper.rushIncoming;
     if (isChallenge) keeper.beginShot();
@@ -337,6 +385,7 @@ class MatchModel {
           (phase == MatchPhase.aiming || phase == MatchPhase.flying)) {
         secondsRemaining = math.max(0, secondsRemaining - step);
         if (timeExpired && phase == MatchPhase.aiming) {
+          cancelShot();
           message = "TIME'S UP!";
           phase = MatchPhase.finished;
           return;
@@ -417,8 +466,8 @@ class MatchModel {
     ballAngle += 16 * motionDt;
     ballY -= speedY * motionDt;
     final progress =
-        ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0);
-    ballX = ballStartX + (shotTargetX - ballStartX) * progress;
+        ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0).toDouble();
+    ballX = ShotCurve.xAt(ballStartX, shotTargetX, shotSpin, progress);
     if (isChallenge) {
       keeper.updateFlight(motionDt, _patrolKeeperX, clock,
           ballX: ballX, ballY: ballY, launchX: ballStartX, launchY: ballStartY);

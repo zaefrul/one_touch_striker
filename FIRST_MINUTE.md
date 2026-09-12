@@ -6,6 +6,10 @@ easier to enter and understand, and make each retry suggest a useful correction.
 This is a design hypothesis. It has not been built, run or playtested here;
 replay appeal and frame performance remain unmeasured.
 
+The subsequent [curve-shot milestone](CURVE_SHOTS.md) changes physical input
+to touch, optional sideways drag, then release. The guide and miss advice now
+describe that control. The progression and rewards described below still apply.
+
 ## Enter through a real match
 
 Home now puts the next challenge action first:
@@ -26,8 +30,9 @@ briefing; its guide is enabled if Stage 1 has never been cleared.
 
 The guide uses existing Stage 1 gameplay, with no separate practice score:
 
-1. Before a first goal: explain that tapping anywhere locks the arrow and that
-   the target dot shows the shot direction. Keep the TAP cue after unsuccessful
+1. Before a first goal: explain that touch locks the arrow, sideways drag adds
+   bend, and release shoots. The target dot follows the planned endpoint.
+   Keep the TAP cue after unsuccessful
    first shots so one failed tap does not remove the teaching cue.
 2. After a goal: ask the player to read the keeper and find open space. Explain
    that two goals without a miss charge a Fire Shot.
@@ -53,10 +58,10 @@ or contacts an opponent. Display text is not used to distinguish causes.
 
 | Cause | Suggested correction |
 | --- | --- |
-| Wide | Tap while the target dot is inside the goal. |
+| Wide | Aim further inside or use less bend. |
 | Post | Leave a little space inside the post. |
 | Keeper | Look for a lane away from his gloves. |
-| Defender | Wait for an opening through the defence. |
+| Defender | Wait for an opening or bend around the defender. |
 
 The correction appears during feedback and remains in the footer while aiming
 again, so it can be read after the brief animation. On a stage failure, the
@@ -96,9 +101,10 @@ Use these focused local checks:
 
 1. With no Stage 1 stars, tap PLAY FIRST MATCH. Check immediate live Stage 1,
    readable instructions, the target dot and the three-chance display.
-2. Tap on different parts of the pitch while holding the same arrow timing.
-   The accepted direction must come from the arrow, not the finger position.
-   Extra taps during flight must not create another shot.
+2. Touch and release on different parts of the pitch at the same arrow timing,
+   without dragging. The initial direction must come from the arrow. Repeat
+   with sideways drag and check the preview changes with bend. Extra touches
+   during flight must not steer the ball or create another shot.
 3. Miss first, then score two consecutive goals and release the boosted shot.
    Check the repeated TAP cue, correction, charge lesson and real outcome.
 4. Produce a post, a wide shot, a keeper save and a defender block. Check that

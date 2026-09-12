@@ -1,6 +1,6 @@
 # One-Touch Striker — Flutter prototype
 
-A portrait arcade football game: follow the sweeping arrow, tap the pitch, and beat the keeper. All artwork is rendered in code; no external image assets or backend are needed.
+A portrait arcade football game: follow the sweeping arrow, touch to aim, drag to bend, and release to beat the keeper. All artwork is rendered in code; no external image assets or backend are needed.
 
 ## Status
 
@@ -34,6 +34,14 @@ target. Retry/Next appears before detailed results, with new rewards close to
 the star award. See [first-session flow and local checks](FIRST_MINUTE.md).
 The guide uses normal match rules and the existing star save. Its effect on
 understanding, replay appeal and frame performance has not been measured.
+
+**Player-controlled curves** capture the arrow on touch, use sideways drag for
+adjustable spin, and launch on release. Quick taps remain straight; stronger
+drags produce a banana bend. The preview and physical ball share one curve
+calculation. Holding does not freeze opponents or the clock, and cancellation
+discards the pending shot. See [controls, tuning and local checks](CURVE_SHOTS.md).
+This first control milestone does not yet add knuckles, chips or driven shots.
+It was source-reviewed only; no analyzer, tests, builds, app runs or workflows ran.
 
 ## Run on your machine
 
@@ -79,8 +87,10 @@ If the owner later chooses to use it after integration, the manual workflow reso
 
 ## Classic rules
 
-- Tap the pitch while aiming. The target locks at the instant of the tap.
-- The ball travels on a straight path; the goalkeeper and defenders keep moving.
+- Touch the pitch while aiming to lock the initial arrow direction; release to shoot.
+- Drag sideways before releasing to add curve; drag back to the touch origin to straighten.
+- The target dot previews the curved endpoint. Excessive bend can go wide; no shot is auto-corrected.
+- The goalkeeper and defenders keep moving while holding and during ball flight.
 - Goal: 1 point. Either highlighted goal corner: 3 points.
 - Five consecutive goals activate 2× scoring for subsequent shots. The fifth itself uses the previous multiplier.
 - A miss, save, or block uses one chance and resets the streak.
@@ -141,6 +151,7 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Four Rival Cup showdowns, permanent trophies and saved personal keeper records
 - Five star cosmetics, next-reward targets and a saved equipment collection
 - Guided first match, Home continuation, persistent miss corrections and a visible locked target
+- Release-to-shoot input, adjustable sidespin/banana bends, matching physical preview and pointer cancellation
 - Preloaded sound effects, independent saved mute and lifecycle cleanup
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
 - Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
@@ -153,6 +164,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | --- | --- |
 | `lib/main.dart` | App shell, menu/HUD, lifecycle pause, storage and haptics |
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
+| `lib/game/shot_curve.dart` | Shared deterministic curve, drag tuning and finite release labels |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/showdown.dart` | Four additional showdown rules and stable trophy IDs |
 | `lib/game/first_touch_guide.dart` / `lib/game/shot_failure.dart` | First-match lessons and simulation-derived miss advice |
@@ -169,6 +181,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/ui/challenge_panel.dart` | Stage map, briefings, clear and retry panels |
 | `lib/ui/star_rewards_panel.dart` | Next reward card and equipment collection |
 | `lib/ui/home_panel.dart` | First match, next-stage continuation and compact mode/reward entry |
+| `lib/ui/shot_gesture_surface.dart` | Single-pointer capture, fitted drag scale, release and cancellation |
 | `lib/ui/run_summary.dart` | Shared result statistics and personal-best badge |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
@@ -180,6 +193,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `test/pro_keeper_test.dart` | Delayed reactions, committed reach, slides, pose contact, taunts and resets |
 | `test/rival_cup_test.dart` / `test/rival_cup_widget_test.dart` | Unexecuted showdown, record, legacy-save and equipment regression sources |
 | `test/first_touch_test.dart` / `test/first_touch_widget_test.dart` | Unexecuted guide, physical miss, quick-entry, retry and save-continuity sources |
+| `test/curve_shot_test.dart` / `test/curve_gesture_test.dart` | Unexecuted curve collision, scoring, timing, scale, cancellation and pointer ownership sources |
 | `assets/audio/` / `tool/generate_audio.py` | Original WAV effects and their generator |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 
