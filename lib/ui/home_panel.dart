@@ -6,7 +6,7 @@ import 'star_rewards_panel.dart';
 class HomePanel extends StatelessWidget {
   const HomePanel({super.key, required this.progress, required this.loaded,
       required this.onQuickPlay, required this.onStages, required this.onClassic,
-      required this.onRewards});
+      required this.onRewards, required this.onPractice});
 
   final ChallengeProgress progress;
   final bool loaded;
@@ -14,6 +14,7 @@ class HomePanel extends StatelessWidget {
   final VoidCallback onStages;
   final VoidCallback onClassic;
   final VoidCallback onRewards;
+  final VoidCallback onPractice;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +54,14 @@ class HomePanel extends StatelessWidget {
                   : '${stage.name} · ${stage.objectiveLabel}',
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white60, fontSize: 12)),
+      const SizedBox(height: 8),
+      SizedBox(width: double.infinity, child: OutlinedButton.icon(
+          onPressed: loaded ? onPractice : null,
+          icon: const Icon(Icons.sports_soccer, size: 18),
+          label: const Text('PRACTICE ARENA'))),
+      const Text('Five-ball drills · Learn the timed knuckle shot',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white54, fontSize: 11)),
       const SizedBox(height: 8),
       Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
         TextButton(onPressed: loaded ? onStages : null,

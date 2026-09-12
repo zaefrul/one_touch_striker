@@ -11,6 +11,8 @@ import 'star_rewards.dart';
 import 'playtest_trace.dart';
 import 'shot_trail.dart';
 import 'shot_curve.dart';
+import 'knuckle_shot.dart';
+import 'practice_drill.dart';
 
 class StrikerGame extends FlameGame {
   StrikerGame(this.model,
@@ -37,6 +39,7 @@ class StrikerGame extends FlameGame {
   double _kickTime = 0;
   Picture? _fieldPicture;
   int? _fieldStageIndex;
+  PracticeDrill? _fieldPractice;
   final List<Picture> _playerPictures = [];
   // Include Classic's two defenders and every configured challenge defender.
   // Precache once so entering a triple-wall stage needs no new player artwork.
@@ -72,6 +75,20 @@ class StrikerGame extends FlameGame {
     ..color = const Color(0xffd9ff6a)
     ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
+  final Paint _timingTrackPaint = Paint()
+    ..color = const Color(0x667edfff)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
+  final Paint _timingZonePaint = Paint()
+    ..color = const Color(0xff7edfff)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 5;
+  final Paint _timingMarkerPaint = Paint()..color = const Color(0xffefffe2);
+  final Paint _practiceTargetPaint = Paint()
+    ..color = const Color(0xff7edfff)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2;
+  final Paint _practiceTargetFill = Paint()..color = const Color(0x447edfff);
   final Paint _aimRingPaint = Paint()
     ..color = const Color(0x55d9ff6a)
     ..style = PaintingStyle.stroke
@@ -130,6 +147,10 @@ class StrikerGame extends FlameGame {
     for (final cue in ShotCurve.releaseLabels) {
       _painterFor(cue, 10, const Color(0xffd9ff6a), 1);
     }
+    for (final cue in KnuckleShot.releaseLabels) {
+      _painterFor(cue, 10, const Color(0xff7edfff), 1);
+    }
+    _painterFor('TARGET', 9, const Color(0xff7edfff), 1);
     _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
     _painterFor('FIRE SHOT', 13, const Color(0xffd9ff6a), 3);
     _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
@@ -160,17 +181,19 @@ class StrikerGame extends FlameGame {
   }
 
   void _prepareField() {
-    if (_fieldPicture != null && _fieldStageIndex == model.stageIndex) {
+    if (_fieldPicture != null && _fieldStageIndex == model.stageIndex &&
+        _fieldPractice == model.practice) {
       return;
     }
     _fieldPicture?.dispose();
     _fieldStageIndex = model.stageIndex;
+    _fieldPractice = model.practice;
     // Keep logical vector commands so resizing does not blur the pitch.
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
     _pitch(canvas);
     _goal(canvas);
-    _label(canvas, model.isChallenge
+    _label(canvas, model.isPractice ? 'FIVE BALLS. FIND YOUR TOUCH.' : model.isChallenge
         ? '${model.keeperSkill.title.toUpperCase()} · ${model.keeperStyle.title.toUpperCase()}'
         : 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
         const Color(0xff75b3a1), spacing: 2);
@@ -212,6 +235,12 @@ class StrikerGame extends FlameGame {
   void startMatch() {
     trace.event('classic.start-or-restart');
     model.start();
+    _resetPresentation();
+  }
+
+  void startPractice(PracticeDrill drill) {
+    trace.event('practice.start', {'drill': drill.id});
+    model.startPractice(drill);
     _resetPresentation();
   }
 
@@ -258,8 +287,8 @@ class StrikerGame extends FlameGame {
     return true;
   }
 
-  void adjustCurve(double dragX) {
-    if (!matchPaused) model.adjustCurve(dragX);
+  void adjustCurve(double dragX, {double dragY = 0}) {
+    if (!matchPaused) model.adjustCurve(dragX, dragY: dragY);
   }
 
   // No Flutter notification: safe when a pointer is cancelled during layout,
@@ -276,7 +305,7 @@ class StrikerGame extends FlameGame {
       _trail.clear();
       _previous = model.phase;
       trace.event('shot.released', {'shot': model.resolvedShots + 1,
-          'spin': model.shotSpin});
+          'spin': model.shotSpin, 'timing': model.shotTiming.name});
       _syncTrace();
       onChanged();
       return true;
@@ -317,7 +346,7 @@ class StrikerGame extends FlameGame {
             MatchPhase.ready => 'menu',
           };
     trace.phase(label, {
-      'mode': model.isChallenge ? 'challenge' : 'classic',
+      'mode': model.isPractice ? 'practice' : model.isChallenge ? 'challenge' : 'classic',
       'level': model.level,
       'resolvedShots': model.resolvedShots,
     });
@@ -373,14 +402,15 @@ class StrikerGame extends FlameGame {
     _prepareField();
     _preparePlayers();
     canvas.drawPicture(_fieldPicture!);
+    _practiceTarget(canvas);
     _stakes(canvas);
     for (var i = 0; i < model.defenderCount; i++) {
       _player(canvas, model.defenderX(i), model.defenderY(i), KeeperStyle.values.length + i);
     }
-    if (model.isChallenge) {
+    if (model.usesProfessionalKeeper) {
       _professionalKeeper(canvas);
       _keeperCue(canvas);
-    } else {
+    } else if (model.hasKeeper) {
       _player(canvas, model.keeperX, model.keeperY, model.keeperStyle.index);
     }
     if (model.phase == MatchPhase.aiming || model.phase == MatchPhase.ready) {
@@ -465,7 +495,7 @@ class StrikerGame extends FlameGame {
     c.drawCircle(const Offset(200, 436), 57, line);
     c.drawCircle(
         const Offset(200, 216), 3, Paint()..color = const Color(0xff8bddad));
-    _label(c, model.stage?.name.toUpperCase() ?? 'STRIKER ARENA',
+    _label(c, model.practice?.title.toUpperCase() ?? model.stage?.name.toUpperCase() ?? 'STRIKER ARENA',
         200, 36, 11, const Color(0xff9bd7b6),
         spacing: 3);
   }
@@ -484,11 +514,13 @@ class StrikerGame extends FlameGame {
     for (double y = 55; y < 100; y += 11) {
       c.drawLine(Offset(65, y), Offset(335, y), net);
     }
-    final glow = Paint()..color = const Color(0x66d9ff6a);
-    c.drawRect(const Rect.fromLTWH(73, 58, 37, 42), glow);
-    c.drawRect(const Rect.fromLTWH(290, 58, 37, 42), glow);
-    _label(c, '+3', 91, 72, 13, const Color(0xffe1ff8d));
-    _label(c, '+3', 309, 72, 13, const Color(0xffe1ff8d));
+    if (!model.isPractice) {
+      final glow = Paint()..color = const Color(0x66d9ff6a);
+      c.drawRect(const Rect.fromLTWH(73, 58, 37, 42), glow);
+      c.drawRect(const Rect.fromLTWH(290, 58, 37, 42), glow);
+      _label(c, '+3', 91, 72, 13, const Color(0xffe1ff8d));
+      _label(c, '+3', 309, 72, 13, const Color(0xffe1ff8d));
+    }
     final frame = Paint()
       ..color = Color(_netSkin.secondary)
       ..strokeWidth = 5
@@ -508,6 +540,15 @@ class StrikerGame extends FlameGame {
     c.translate(x, y);
     c.drawPicture(_playerPictures[pictureIndex]);
     c.restore();
+  }
+
+  void _practiceTarget(Canvas c) {
+    if (!model.isPractice || !model.practice!.hasTarget) return;
+    final target = Rect.fromLTWH(model.practiceTargetX - PracticeDrill.targetHalfWidth,
+        55, PracticeDrill.targetHalfWidth * 2, 48);
+    c.drawRect(target, _practiceTargetFill);
+    c.drawRect(target, _practiceTargetPaint);
+    _label(c, 'TARGET', model.practiceTargetX, 76, 9, const Color(0xff7edfff), spacing: 1);
   }
 
   void _professionalKeeper(Canvas c) {
@@ -642,8 +683,10 @@ class StrikerGame extends FlameGame {
     c.drawPath(_aimPath, _aimPaint);
     _targetDot(c, model.previewTargetX);
     c.drawCircle(const Offset(200, 548), 25, _aimRingPaint);
-    _label(c, ShotCurve.releaseLabel(model.preparedSpin),
-        200, 575, 10, const Color(0xffd9ff6a), spacing: 1);
+    _label(c, model.preparedReleaseLabel,
+        200, 585, 10, model.canTimeKnuckle
+            ? const Color(0xff7edfff) : const Color(0xffd9ff6a), spacing: 1);
+    if (model.canTimeKnuckle) _knuckleRing(c);
     c.drawLine(const Offset(152, 602), const Offset(248, 602), _spinTrackPaint);
     c.drawLine(const Offset(200, 597), const Offset(200, 607), _spinTrackPaint);
     if (model.preparedSpin != 0) {
@@ -671,6 +714,19 @@ class StrikerGame extends FlameGame {
         ..lineTo(visibleX, MatchModel.goalY + 6);
       c.drawPath(_aimPath, _lockedTargetPaint);
     }
+  }
+
+  void _knuckleRing(Canvas c) {
+    const centre = Offset(MatchModel.ballStartX, MatchModel.ballStartY);
+    const radius = 32.0;
+    final ring = Rect.fromCircle(center: centre, radius: radius);
+    c.drawCircle(centre, radius, _timingTrackPaint);
+    c.drawArc(ring, -math.pi / 2 + 2 * math.pi * KnuckleShot.sweetStart / KnuckleShot.ringDuration,
+        2 * math.pi * (KnuckleShot.sweetEnd - KnuckleShot.sweetStart) / KnuckleShot.ringDuration,
+        false, _timingZonePaint);
+    final angle = -math.pi / 2 + 2 * math.pi * model.heldSeconds / KnuckleShot.ringDuration;
+    c.drawCircle(centre + Offset(math.cos(angle), math.sin(angle)) * radius,
+        4, _timingMarkerPaint);
   }
 
   void _ball(Canvas c) {

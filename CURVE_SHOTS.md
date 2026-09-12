@@ -2,8 +2,9 @@
 
 First control milestone on `feat/stage-challenges`, based on
 `4930f9cab835a0ba031046af3259a7e12cea7702`. This source adds straight shots,
-adjustable left/right curves and the stronger banana bend. Knuckle timing,
-chips, driven shots and variable shot power are later milestones.
+adjustable left/right curves and the stronger banana bend. The subsequent
+[knuckle and practice milestone](KNUCKLE_PRACTICE.md) adds stationary release
+timing. Chips, driven shots and variable shot power remain later milestones.
 
 No analyzer, tests, builds, app runs or GitHub workflows were executed here.
 The controls, rendering and cancellation paths were reviewed in source only.
@@ -14,20 +15,22 @@ Gesture feel, difficulty changes and frame performance need local playtesting.
 | Action | What happens |
 | --- | --- |
 | Touch inside the fitted pitch | Capture the arrow's initial direction immediately. The ball stays at the launch point. |
-| Release with little or no sideways movement | Shoot straight in the captured direction. |
+| Quick release with little or no movement | Shoot straight in the captured direction. |
+| Hold still and release in the blue zone | Use the timed knuckle described in `KNUCKLE_PRACTICE.md`. |
 | Drag left or right before releasing | Bend in that direction; farther movement adds more bend. |
 | Drag back to the touch origin | Remove the bend and return to a straight shot. |
 | Reach strong bend | The label changes from CURVE to BANANA. This is the same continuous control, not an automatic bonus. |
 | Release | Lock the final spin and target, launch once, then play kick audio/haptics. |
-| Move vertically | No extra technique or power; only sideways displacement affects spin in this milestone. |
+| Move vertically | No height or power; deliberate movement opts the hold out of knuckle timing. |
 
 The keeper, defenders and active stage clock continue while the player holds.
-Holding longer does not charge power or improve the shot. A touch begun before
+Holding longer does not charge power; a knuckle requires the specific release
+window. A touch begun before
 zero does not reserve a buzzer shot: the ball must be released before zero.
 Once airborne, further touches cannot steer or launch another ball.
 
 This changes physical input from shooting on finger-down to shooting on
-finger-up. There is no added long-press timer. A quick tap still shoots, with
+finger-up. Waiting never launches automatically. A quick tap still shoots, with
 direction taken at the start of that tap. Accessibility activation retains a
 straight-shot action, though the visual timing game remains limited for players
 who cannot use its visual cues.
@@ -116,5 +119,5 @@ widget source also follows the new instructions and semantic label.
 
 For feedback, record device/build, whether bend direction matched intent,
 whether the dead zone prevented accidental curves, and whether the player could
-repeat approximately the same bend. Use those observations before adding
-knuckle timing or changing stage difficulty.
+repeat approximately the same bend. Use those observations alongside the
+knuckle drill handoff before changing gesture tuning or stage difficulty.

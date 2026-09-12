@@ -72,11 +72,12 @@ pressing Play. The optional `Striker:` spans/markers identify:
 | --- | --- |
 | `aiming.first` / `aiming.repeat` | Waiting for input or holding a prepared shot |
 | `shot.prepare` | Touch captured the initial direction; ball has not launched |
-| `shot.released` | Spin and target locked and ball launched; includes spin and shot number |
+| `shot.released` | Spin and target locked and ball launched; includes spin, timing classification and shot number |
 | `shot.first` / `shot.repeat` | First versus subsequent flight |
 | `feedback.goal` / `feedback.miss` | Goal, save, block or miss feedback |
 | `classic.start-or-restart` | Starting/restarting Classic |
 | `stage.prepare` / `stage.start` / `stage.retry` | Briefings, starting and direct retries |
+| `practice.start` | Starting or retrying a five-ball drill; includes its stable drill ID |
 | `paused` / `results` / `stage.cleared` | Pause and end panels |
 | `storage.load.*` / `save.best_score.*` | Loading and best-score write boundaries |
 | `haptic.tap` / `haptic.result` | Platform haptic dispatch after launch or result |
@@ -155,6 +156,15 @@ analyzer, tests, builds or workflows were executed for this source update.
 See `CURVE_SHOTS.md` for the cancellation and gesture handoff.
 
 ## Regression cases prepared for local execution
+
+The knuckle/practice milestone uses the existing simulation and render loop for
+its blue timing ring, bounded wobble and marked targets. Cue text is preloaded,
+paints are reused, and practice selection is part of the static field-cache key.
+Holding and dragging add no Flutter notifications. Best records write only when
+a completed five-ball drill improves its best, through the existing queue.
+Capture blue-zone entry, clean release, keeper contact and drill retry locally;
+no timing, frame, difficulty or usability measurements were made here. See
+`KNUCKLE_PRACTICE.md` for initial tuning and unexecuted regression sources.
 
 `test/motion_model_test.dart` covers motion continuity, easing, active timers,
 rotation, streak statistics and trail sampling across refresh rates.

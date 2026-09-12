@@ -12,7 +12,7 @@ class ShotGestureSurface extends StatefulWidget {
 
   final bool enabled;
   final bool Function() onBegin;
-  final ValueChanged<double> onDrag;
+  final void Function(double dragX, double dragY) onDrag;
   final VoidCallback onRelease, onCancel, onAccessibleShot;
   final Widget child;
 
@@ -22,7 +22,8 @@ class ShotGestureSurface extends StatefulWidget {
 
 class _ShotGestureSurfaceState extends State<ShotGestureSurface> {
   int? _pointer;
-  double _originX = 0, _scale = 1;
+  Offset _origin = Offset.zero;
+  double _scale = 1;
   Rect _pitchBounds = Rect.zero;
   Size? _viewport;
 
@@ -57,7 +58,7 @@ class _ShotGestureSurfaceState extends State<ShotGestureSurface> {
         MatchModel.width * scale, MatchModel.height * scale);
     if (!bounds.contains(event.localPosition) || !widget.onBegin()) return;
     _pointer = event.pointer;
-    _originX = event.localPosition.dx;
+    _origin = event.localPosition;
     _scale = scale;
     _pitchBounds = bounds;
   }
@@ -68,7 +69,8 @@ class _ShotGestureSurfaceState extends State<ShotGestureSurface> {
       _cancel();
       return;
     }
-    widget.onDrag((event.localPosition.dx - _originX) / _scale);
+    final delta = (event.localPosition - _origin) / _scale;
+    widget.onDrag(delta.dx, delta.dy);
   }
 
   void _up(PointerUpEvent event) {
@@ -78,7 +80,8 @@ class _ShotGestureSurfaceState extends State<ShotGestureSurface> {
       return;
     }
     // Include the final position even if the platform omitted a last move.
-    widget.onDrag((event.localPosition.dx - _originX) / _scale);
+    final delta = (event.localPosition - _origin) / _scale;
+    widget.onDrag(delta.dx, delta.dy);
     _pointer = null;
     widget.onRelease();
   }
@@ -93,7 +96,8 @@ class _ShotGestureSurfaceState extends State<ShotGestureSurface> {
       excluding: !widget.enabled,
       child: Semantics(
         label: 'Football pitch. Touch to lock the arrow, drag sideways to bend, '
-            'then release to shoot. Activate for a straight shot in the arrow direction.',
+            'then release to shoot. Hold still and release in the blue timing zone for a knuckle. '
+            'Activate for a straight shot in the arrow direction.',
         button: true,
         onTap: widget.enabled ? widget.onAccessibleShot : null,
         child: Listener(

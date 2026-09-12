@@ -7,6 +7,8 @@ import 'showdown.dart';
 import 'first_touch_guide.dart';
 import 'shot_failure.dart';
 import 'shot_curve.dart';
+import 'knuckle_shot.dart';
+import 'practice_drill.dart';
 
 enum MatchPhase {
   ready,
@@ -74,13 +76,45 @@ class MatchModel {
   bool _preparingShot = false;
   double _preparedAimX = ballStartX, _preparedSpin = 0;
   double shotSpin = 0;
+  double _heldSeconds = 0;
+  bool _movedShot = false;
+  StrikeTiming shotTiming = StrikeTiming.tap;
+  String lastTechnique = '', lastTechniqueAdvice = '';
+  PracticeDrill? practice;
+  int practiceHits = 0, practiceCleanStrikes = 0, _practiceTargetIndex = 0;
+  bool lastPracticeHit = false;
+  String lastPracticeNote = '';
+  final List<PracticeShot> practiceShots = [];
 
   bool get isPreparingShot => _preparingShot;
   double get preparedSpin => _preparedSpin;
+  double get heldSeconds => _heldSeconds;
+  bool get canTimeKnuckle => _preparingShot && !_movedShot;
+  bool get knuckleReady => canTimeKnuckle &&
+      KnuckleShot.timingAt(_heldSeconds) == StrikeTiming.clean;
+  bool get shotIsKnuckle => shotTiming == StrikeTiming.clean;
+  String get preparedReleaseLabel => canTimeKnuckle
+      ? KnuckleShot.releaseLabel(_heldSeconds) : ShotCurve.releaseLabel(_preparedSpin);
   double get previewTargetX => _preparingShot
       ? ShotCurve.targetFor(_preparedAimX, _preparedSpin) : aimX;
   double previewXAt(double progress) => ShotCurve.xAt(ballStartX,
-      previewTargetX, _preparingShot ? _preparedSpin : 0.0, progress);
+      previewTargetX, _preparingShot ? _preparedSpin : 0.0, progress) +
+      (knuckleReady ? KnuckleShot.offsetAt(progress) : 0);
+
+  bool get isPractice => practice != null;
+  bool get isClassic => !isChallenge && !isPractice;
+  bool get hasKeeper => !isPractice || practice == PracticeDrill.knuckle;
+  bool get usesProfessionalKeeper => isChallenge || (isPractice && hasKeeper);
+  int get practiceBallsLeft => math.max(0,
+      PracticeDrill.balls - resolvedShots - (phase == MatchPhase.flying ? 1 : 0));
+  bool get practiceCompleted => isPractice && phase == MatchPhase.finished &&
+      resolvedShots == PracticeDrill.balls;
+  double get practiceTargetX => practice?.targetX(_practiceTargetIndex) ?? 200;
+  String get shotOutcome => lastWasGoal ? 'Goal' : switch (lastFailure) {
+    ShotFailure.keeper => 'Saved', ShotFailure.defender => 'Blocked',
+    ShotFailure.post => 'Post', ShotFailure.wide => 'Wide', null => '',
+  };
+  String get shotExplanation => lastTechnique.isEmpty ? '' : '$lastTechnique · $shotOutcome';
 
   bool get isGuidedFirstMatch => _guidedFirstMatch;
   FirstTouchLesson get firstTouchLesson => onFire
@@ -88,7 +122,8 @@ class MatchModel {
       : goals == 0 ? FirstTouchLesson.aim : FirstTouchLesson.space;
   String get firstTouchHint => switch (phase) {
     MatchPhase.stageIntro => FirstTouchLesson.aim.instruction,
-    MatchPhase.aiming => lastFailure?.advice ?? firstTouchLesson.instruction,
+    MatchPhase.aiming => lastTechniqueAdvice.isNotEmpty ? lastTechniqueAdvice
+        : lastFailure?.advice ?? firstTouchLesson.instruction,
     MatchPhase.flying => 'Shot released. Watch the ball follow the path you set.',
     MatchPhase.result => lastWasGoal
         ? justChargedFire ? 'Two in a row! Your next shot scores double if it goes in.'
@@ -105,15 +140,18 @@ class MatchModel {
     return stage?.tip ?? 'Watch the target dot and look for an open lane.';
   }
 
-  int get lives => 3 - misses;
+  int get lives => isPractice ? practiceBallsLeft : 3 - misses;
   int get level => stageIndex == null ? 1 + goals ~/ 3 : stageIndex! + 1;
-  int get multiplier => isChallenge ? (fireReady ? 2 : 1) : (streak >= 5 ? 2 : 1);
+  int get multiplier => isPractice ? 1
+      : isChallenge ? (fireReady ? 2 : 1) : (streak >= 5 ? 2 : 1);
   bool get fireReady => isChallenge && fireCharge >= stage!.fireChargeGoals;
   KeeperStyle get keeperStyle => stage?.keeper ?? KeeperStyle.sweeper;
-  KeeperSkill get keeperSkill => stage?.keeperSkill ?? KeeperSkill.academy;
+  KeeperSkill get keeperSkill => isPractice ? KeeperSkill.club
+      : stage?.keeperSkill ?? KeeperSkill.academy;
   double get goalFeedbackDuration => lastWasCorner || lastWasFire ? 1.25 : .85;
   int get defenderCount =>
-      stage?.defenders ?? (goals >= 9 ? 2 : (goals >= 3 ? 1 : 0));
+      isPractice ? (practice == PracticeDrill.curveWall ? 1 : 0)
+          : stage?.defenders ?? (goals >= 9 ? 2 : (goals >= 3 ? 1 : 0));
   ChallengeStage? get stage =>
       stageIndex == null ? null : challengeStages[stageIndex!];
   bool get isChallenge => stageIndex != null;
@@ -187,13 +225,15 @@ class MatchModel {
       ? (phase == MatchPhase.flying ? shotIsFire : fireReady)
       : multiplier == 2;
   bool get lastChance =>
-      lives == 1 &&
+      !isPractice && lives == 1 &&
       (phase == MatchPhase.aiming || phase == MatchPhase.flying);
   bool get shotHeadsToCornerGoal =>
       isOnTarget(shotTargetX) && isCornerTarget(shotTargetX);
   bool get shotHeadsToPost =>
       !isOnTarget(shotTargetX) && outsideGoal(shotTargetX) <= postClip;
   String get resultSubtitle {
+    if (isPractice) return '${lastPracticeHit ? '+1 HIT' : 'NO DRILL POINT'} · '
+        '$practiceHits/${PracticeDrill.balls} HITS';
     if (lastWasGoal) {
       final points = '+$lastPoints POINTS';
       return unlockNote.isEmpty ? points : '$points · $unlockNote';
@@ -204,20 +244,22 @@ class MatchModel {
     return lives == 1 ? '1 CHANCE LEFT' : '$lives CHANCES LEFT';
   }
   double get _aimSpeed =>
-      stage?.aimSpeed ?? (1.35 + math.min(goals, 18) * .055);
+      isPractice ? 1.0 : stage?.aimSpeed ?? (1.35 + math.min(goals, 18) * .055);
   double get _keeperSpeed =>
-      stage?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
+      isPractice ? .75 : stage?.keeperSpeed ?? (1.0 + math.min(goals, 18) * .06);
   double get aimX => 200 + 172 * math.sin(_aimAngle);
   double get _patrolKeeperX {
-    return 200 + (stage?.keeperRange ?? 100) * keeperStyle.offset(_keeperAngle);
+    return 200 + (isPractice ? 70 : stage?.keeperRange ?? 100) * keeperStyle.offset(_keeperAngle);
   }
-  double get keeperX => isChallenge ? keeper.pose.x : _patrolKeeperX;
-  double get keeperY => isChallenge ? keeper.pose.y : KeeperController.homeY;
+  double get keeperX => usesProfessionalKeeper ? keeper.pose.x : _patrolKeeperX;
+  double get keeperY => usesProfessionalKeeper ? keeper.pose.y : KeeperController.homeY;
   // Three rows stay well ahead of the launch point so the nearest defender
   // leaves room to read a lane. Earlier stages retain their original layout.
   double defenderY(int index) =>
-      defenderCount >= 3 ? 250.0 + index * 85 : 278.0 + index * 108;
+      isPractice ? 324.0
+          : defenderCount >= 3 ? 250.0 + index * 85 : 278.0 + index * 108;
   double defenderX(int index) {
+    if (isPractice) return 200 + (practiceTargetX - 200) * .5 + 8 * math.sin(clock * .9);
     final current = stage;
     if (current != null && current.pattern == DefencePattern.staggered) {
       return 200 +
@@ -234,12 +276,14 @@ class MatchModel {
 
   void start() {
     stageIndex = null;
+    practice = null;
     _resetRun();
     phase = MatchPhase.aiming;
   }
 
   void prepareStage(int index, {bool guided = false}) {
     RangeError.checkValidIndex(index, challengeStages, 'index');
+    practice = null;
     stageIndex = index;
     _resetRun();
     _guidedFirstMatch = guided && index == 0;
@@ -252,6 +296,13 @@ class MatchModel {
       stageStarted = true;
       phase = MatchPhase.aiming;
     }
+  }
+
+  void startPractice(PracticeDrill drill) {
+    stageIndex = null;
+    practice = drill;
+    _resetRun();
+    phase = MatchPhase.aiming;
   }
 
   void retryStage() {
@@ -268,6 +319,7 @@ class MatchModel {
 
   void returnToMenu() {
     stageIndex = null;
+    practice = null;
     _resetRun();
     phase = MatchPhase.ready;
   }
@@ -276,6 +328,10 @@ class MatchModel {
     attemptId++;
     cancelShot();
     shotSpin = 0;
+    lastTechnique = lastTechniqueAdvice = lastPracticeNote = '';
+    practiceHits = practiceCleanStrikes = _practiceTargetIndex = 0;
+    lastPracticeHit = false;
+    practiceShots.clear();
     _guidedFirstMatch = false;
     lastFailure = null;
     stageStarted = false;
@@ -312,13 +368,15 @@ class MatchModel {
       phase = MatchPhase.stageCleared;
       return;
     }
-    message = isChallenge ? 'STAGE ENDED' : 'FULL TIME';
+    message = isPractice ? 'PRACTICE ENDED' : isChallenge ? 'STAGE ENDED' : 'FULL TIME';
     phase = MatchPhase.finished;
   }
 
   void resetBall() {
     cancelShot();
     shotSpin = 0;
+    shotTiming = StrikeTiming.tap;
+    if (isPractice) _practiceTargetIndex = math.min(resolvedShots, PracticeDrill.balls - 1);
     ballX = ballStartX;
     ballY = ballStartY;
     ballAngle = 0;
@@ -330,12 +388,20 @@ class MatchModel {
     if (_preparingShot || phase != MatchPhase.aiming || timeExpired) return false;
     _preparedAimX = aimX;
     _preparedSpin = 0;
+    _heldSeconds = 0;
+    _movedShot = false;
     _preparingShot = true;
     return true;
   }
 
-  void adjustCurve(double dragX) {
+  void adjustCurve(double dragX, {double dragY = 0}) {
     if (_preparingShot && phase == MatchPhase.aiming && !timeExpired) {
+      // Any deliberate movement opts out of timing for this entire hold,
+      // including a drag that later returns to the centre.
+      if (!dragX.isFinite || !dragY.isFinite ||
+          dragX.abs() > ShotCurve.deadZone || dragY.abs() > ShotCurve.deadZone) {
+        _movedShot = true;
+      }
       _preparedSpin = ShotCurve.spinForDrag(dragX);
     }
   }
@@ -343,29 +409,33 @@ class MatchModel {
   void cancelShot() {
     _preparingShot = false;
     _preparedSpin = 0;
+    _heldSeconds = 0;
+    _movedShot = false;
   }
 
   bool releaseShot() {
     if (!_preparingShot) return false;
     final targetX = previewTargetX;
     final spin = _preparedSpin;
+    final timing = _movedShot ? StrikeTiming.adjusted : KnuckleShot.timingAt(_heldSeconds);
     cancelShot();
-    return _launchShot(targetX, spin);
+    return _launchShot(targetX, spin, timing: timing);
   }
 
   /// Immediate straight shot for accessibility activation and model callers.
   /// A semantic activation cannot steal an existing physical pointer's draft.
   bool shoot() => !_preparingShot && _launchShot(aimX, 0);
 
-  bool _launchShot(double targetX, double spin) {
+  bool _launchShot(double targetX, double spin, {StrikeTiming timing = StrikeTiming.tap}) {
     if (phase != MatchPhase.aiming || timeExpired) {
       return false;
     }
     shotTargetX = targetX;
     shotSpin = spin;
+    shotTiming = timing;
     shotIsFire = fireReady;
     shotAgainstRush = isChallenge && keeper.rushIncoming;
-    if (isChallenge) keeper.beginShot();
+    if (usesProfessionalKeeper) keeper.beginShot();
     firstAim = false;
     phase = MatchPhase.flying;
     return true;
@@ -423,13 +493,16 @@ class MatchModel {
       return;
     }
     final motionDt = dt * motionScale;
+    if (_preparingShot && phase == MatchPhase.aiming) {
+      _heldSeconds = math.min(KnuckleShot.ringDuration, _heldSeconds + dt);
+    }
     clock += motionDt;
     // Integrate phase rather than multiplying the entire elapsed clock by a
     // new speed. Scoring may accelerate players, but cannot teleport them.
     _aimAngle += motionDt * _aimSpeed;
     _keeperAngle += motionDt * _keeperSpeed;
     if (phase == MatchPhase.result) {
-      if (isChallenge) {
+      if (usesProfessionalKeeper) {
         keeper.updateFeedback(dt, _patrolKeeperX, clock);
         if (lastWasKeeperSave) {
           // The saved ball is parried away during feedback; it cannot score
@@ -441,6 +514,15 @@ class MatchModel {
       }
       resultTime -= dt;
       if (resultTime <= 0) {
+        if (isPractice) {
+          if (resolvedShots >= PracticeDrill.balls) {
+            phase = MatchPhase.finished;
+          } else {
+            resetBall();
+            phase = MatchPhase.aiming;
+          }
+          return;
+        }
         // A shot released before zero may still clear the stage.
         if (objectiveMet) {
           phase = MatchPhase.stageCleared;
@@ -457,18 +539,19 @@ class MatchModel {
       return;
     }
     if (phase != MatchPhase.flying) {
-      if (isChallenge && phase == MatchPhase.aiming) {
+      if (usesProfessionalKeeper && phase == MatchPhase.aiming) {
         keeper.updateAiming(motionDt, _patrolKeeperX, clock);
       }
       return;
     }
     const speedY = 780.0;
-    ballAngle += 16 * motionDt;
+    ballAngle += (shotIsKnuckle ? 1.2 : 16) * motionDt;
     ballY -= speedY * motionDt;
     final progress =
         ((ballStartY - ballY) / (ballStartY - goalY)).clamp(0.0, 1.0).toDouble();
-    ballX = ShotCurve.xAt(ballStartX, shotTargetX, shotSpin, progress);
-    if (isChallenge) {
+    ballX = ShotCurve.xAt(ballStartX, shotTargetX, shotSpin, progress) +
+        (shotIsKnuckle ? KnuckleShot.offsetAt(progress) : 0);
+    if (usesProfessionalKeeper) {
       keeper.updateFlight(motionDt, _patrolKeeperX, clock,
           ballX: ballX, ballY: ballY, launchX: ballStartX, launchY: ballStartY);
     }
@@ -478,11 +561,11 @@ class MatchModel {
         return;
       }
     }
-    final keeperHit = isChallenge
+    final keeperHit = hasKeeper && (usesProfessionalKeeper
         ? keeper.pose.hitsBall(ballX, ballY, ballRadius)
-        : hitsBox(keeperX, keeperY, 25, 12);
+        : hitsBox(keeperX, keeperY, 25, 12));
     if (keeperHit) {
-      final saveText = !isChallenge ? 'SAVED!' : switch (keeper.action) {
+      final saveText = !usesProfessionalKeeper ? 'SAVED!' : switch (keeper.action) {
         KeeperAction.dive => 'DIVING SAVE!',
         KeeperAction.slide => 'SLIDING SAVE!',
         _ => 'SAVED!',
@@ -541,6 +624,7 @@ class MatchModel {
       bool keeperSave = false,
       bool blocked = false,
       required String text}) {
+    if (isPractice && (phase != MatchPhase.flying || resolvedShots >= PracticeDrill.balls)) return;
     lastWasGoal = goal;
     lastWasCorner = corner;
     lastWasPost = post;
@@ -549,7 +633,20 @@ class MatchModel {
         : keeperSave ? ShotFailure.keeper
             : blocked ? ShotFailure.defender
                 : post ? ShotFailure.post : ShotFailure.wide;
-    if (isChallenge) {
+    lastTechnique = shotIsKnuckle ? 'Clean knuckle'
+        : shotSpin != 0
+            ? '${shotSpin.abs() >= .75 ? 'Banana' : 'Curve'} ${shotSpin < 0 ? 'left' : 'right'}'
+            : switch (shotTiming) {
+                StrikeTiming.early => 'Released early', StrikeTiming.late => 'Released late',
+                _ => 'Straight shot',
+              };
+    lastTechniqueAdvice = shotTiming == StrikeTiming.early || shotTiming == StrikeTiming.late
+        ? 'For a knuckle, hold still and release while the marker is in the blue zone.' : '';
+    lastPracticeHit = isPractice && goal &&
+        practice!.targetContains(shotTargetX, _practiceTargetIndex) &&
+        (practice != PracticeDrill.curveWall || shotSpin != 0) &&
+        (practice != PracticeDrill.knuckle || shotIsKnuckle);
+    if (usesProfessionalKeeper) {
       keeper.resolveShot(saved: lastWasKeeperSave, targetX: shotTargetX);
     }
     // Charge cannot change during flight. Resolve the boost before updating
@@ -560,7 +657,7 @@ class MatchModel {
     unlockNote = '';
     if (goal) {
       // Classic's fifth goal and a challenge's charging goal arm NEXT shots.
-      lastPoints = (corner ? 3 : 1) * multiplier;
+      lastPoints = isPractice ? (lastPracticeHit ? 1 : 0) : (corner ? 3 : 1) * multiplier;
       score += lastPoints;
       goals++;
       if (corner) {
@@ -573,12 +670,12 @@ class MatchModel {
       if (shotAgainstRush) rushGoals++;
       streak++;
       longestStreak = math.max(longestStreak, streak);
-      if (!isChallenge && goals == 3) {
+      if (isClassic && goals == 3) {
         unlockNote = 'MARKER ON';
-      } else if (!isChallenge && goals == 9) {
+      } else if (isClassic && goals == 9) {
         unlockNote = 'SECOND MARKER';
       }
-      if (!isChallenge && streak == 5) {
+      if (isClassic && streak == 5) {
         unlockNote = '2× ON · NEXT SHOTS';
       }
       if (isChallenge) {
@@ -602,6 +699,17 @@ class MatchModel {
       misses++;
       streak = 0;
       fireCharge = 0;
+    }
+    if (isPractice) {
+      if (lastPracticeHit) practiceHits++;
+      if (shotIsKnuckle) practiceCleanStrikes++;
+      lastPracticeNote = lastPracticeHit ? 'Drill hit earned'
+          : !goal ? 'No drill point'
+              : practice == PracticeDrill.knuckle ? 'Goal scored; clean knuckle timing needed'
+                  : practice == PracticeDrill.curveWall && shotSpin == 0 ? 'Goal scored; add curve to earn a hit'
+                      : 'Goal scored outside the marked target';
+      practiceShots.add(PracticeShot(explanation: shotExplanation,
+          note: lastPracticeNote, hit: lastPracticeHit));
     }
     message = goal && lastWasFire
         ? (corner ? 'FIRE CORNER!' : 'FIRE GOAL!')

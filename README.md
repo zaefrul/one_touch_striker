@@ -40,8 +40,14 @@ adjustable spin, and launch on release. Quick taps remain straight; stronger
 drags produce a banana bend. The preview and physical ball share one curve
 calculation. Holding does not freeze opponents or the clock, and cancellation
 discards the pending shot. See [controls, tuning and local checks](CURVE_SHOTS.md).
-This first control milestone does not yet add knuckles, chips or driven shots.
 It was source-reviewed only; no analyzer, tests, builds, app runs or workflows ran.
+
+**Timed knuckles and Practice Arena** add a blue release window for a stationary
+hold, a small physical low-spin wobble, and feedback separating technique from
+outcome. Three five-ball drills teach corners, bending around a defender and
+knuckle timing, with saved bests and immediate retry. See
+[controls, drill rules and local handoff](KNUCKLE_PRACTICE.md). This is a source
+publication without executed checks or builds; chips and driven shots are later.
 
 ## Run on your machine
 
@@ -89,6 +95,7 @@ If the owner later chooses to use it after integration, the manual workflow reso
 
 - Touch the pitch while aiming to lock the initial arrow direction; release to shoot.
 - Drag sideways before releasing to add curve; drag back to the touch origin to straighten.
+- Hold still and release in the blue timing zone for a knuckle. Early/late releases stay straight; a deliberate drag opts that hold out of timing.
 - The target dot previews the curved endpoint. Excessive bend can go wide; no shot is auto-corrected.
 - The goalkeeper and defenders keep moving while holding and during ball flight.
 - Goal: 1 point. Either highlighted goal corner: 3 points.
@@ -130,6 +137,16 @@ Retry from results goes directly into a fresh attempt; choosing a new stage open
 
 Timers run during aiming and ball flight, using active frame time before cinematic slow motion. Briefings, pause, result feedback and completion panels freeze the countdown. A shot released before zero still resolves, and a winning buzzer shot clears the stage. Defenders follow fixed stage patterns; keeper skill adds delayed reactions and, at Elite and World Class, memory of the last shot's side. Classic's goal-based unlocks do not add extra defenders during a challenge.
 
+## Practice Arena
+
+Home's **PRACTICE ARENA** offers Corner Practice, Bend Around the Wall and
+Knuckle Timing. Each uses five balls, a clear qualifying target and a separate
+best out of five. Finish the five balls to record a best; retry immediately or
+choose another drill. A technique can be clean even when the keeper saves it,
+and the result history explains each attempt. Practice records use
+`practice_bests_v1` and do not change Classic bests, stars, rivals or equipment.
+See [the full drill rules](KNUCKLE_PRACTICE.md).
+
 ## Implemented
 
 - Flutter menus, HUD, three-chance display, restart and pause overlay
@@ -152,6 +169,8 @@ Timers run during aiming and ball flight, using active frame time before cinemat
 - Five star cosmetics, next-reward targets and a saved equipment collection
 - Guided first match, Home continuation, persistent miss corrections and a visible locked target
 - Release-to-shoot input, adjustable sidespin/banana bends, matching physical preview and pointer cancellation
+- Manual timed knuckles, a blue release ring and separate technique/outcome feedback
+- Three five-ball practice drills, saved per-drill bests, attempt history and direct retry
 - Preloaded sound effects, independent saved mute and lifecycle cleanup
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
 - Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
@@ -165,6 +184,8 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/main.dart` | App shell, menu/HUD, lifecycle pause, storage and haptics |
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/shot_curve.dart` | Shared deterministic curve, drag tuning and finite release labels |
+| `lib/game/knuckle_shot.dart` | Timing window, release labels and bounded low-spin trajectory offset |
+| `lib/game/practice_drill.dart` / `lib/game/practice_progress.dart` | Five-ball rules, attempt notes and versioned per-drill bests |
 | `lib/game/challenge_stage.dart` | Stage balance settings, objectives and persistent star progress |
 | `lib/game/showdown.dart` | Four additional showdown rules and stable trophy IDs |
 | `lib/game/first_touch_guide.dart` / `lib/game/shot_failure.dart` | First-match lessons and simulation-derived miss advice |
@@ -183,6 +204,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/ui/home_panel.dart` | First match, next-stage continuation and compact mode/reward entry |
 | `lib/ui/shot_gesture_surface.dart` | Single-pointer capture, fitted drag scale, release and cancellation |
 | `lib/ui/run_summary.dart` | Shared result statistics and personal-best badge |
+| `lib/ui/practice_panel.dart` | Drill selection, instructions, attempt history and practice result/retry |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
 | `test/challenge_model_test.dart` | Objective, timer, buzzer-shot, retry and star-save regression cases |
@@ -194,6 +216,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `test/rival_cup_test.dart` / `test/rival_cup_widget_test.dart` | Unexecuted showdown, record, legacy-save and equipment regression sources |
 | `test/first_touch_test.dart` / `test/first_touch_widget_test.dart` | Unexecuted guide, physical miss, quick-entry, retry and save-continuity sources |
 | `test/curve_shot_test.dart` / `test/curve_gesture_test.dart` | Unexecuted curve collision, scoring, timing, scale, cancellation and pointer ownership sources |
+| `test/knuckle_shot_test.dart` / `test/practice_drill_test.dart` / `test/practice_widget_test.dart` | Unexecuted knuckle timing/contact, five-ball rules and isolated persistence sources |
 | `assets/audio/` / `tool/generate_audio.py` | Original WAV effects and their generator |
 | `tool/bootstrap.sh` | Platform generation, dependency resolution and checks |
 

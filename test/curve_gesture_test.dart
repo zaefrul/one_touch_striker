@@ -93,7 +93,8 @@ void main() {
       textDirection: TextDirection.ltr,
       child: Center(child: SizedBox(width: width, height: height,
         child: ShotGestureSurface(enabled: true, onBegin: match.beginShot,
-          onDrag: match.adjustCurve, onRelease: () { match.releaseShot(); },
+          onDrag: (dx, dy) => match.adjustCurve(dx, dragY: dy),
+          onRelease: () { match.releaseShot(); },
           onCancel: match.cancelShot, onAccessibleShot: () { match.shoot(); },
           child: const ColoredBox(color: Colors.green)),
       )),
@@ -122,6 +123,10 @@ void main() {
     final gesture = await tester.startGesture(bounds.center, pointer: 1);
     await gesture.moveBy(Offset(0, bounds.height * .1));
     expect(game.model.preparedSpin, 0);
+    expect(game.model.canTimeKnuckle, isFalse);
+    await gesture.moveTo(bounds.center);
+    for (var i = 0; i < 6; i++) { game.update(.1); }
+    expect(game.model.knuckleReady, isFalse);
     await gesture.cancel();
     final semantics = tester.widget<Semantics>(find.byWidgetPredicate((widget) =>
         widget is Semantics &&
@@ -130,6 +135,7 @@ void main() {
     semantics.properties.onTap!();
     expect(game.model.phase, MatchPhase.flying);
     expect(game.model.shotSpin, 0);
+    expect(game.model.shotIsKnuckle, isFalse);
     expect(game.model.keeper.shots, 1);
     await tester.pump();
   });
