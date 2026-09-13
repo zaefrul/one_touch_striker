@@ -29,7 +29,8 @@ enum ShotSound {
 }
 
 enum AudioLoop {
-  menu('menu.wav', AudioBus.music),
+  menu('menu-song.mp3', AudioBus.music),
+  inGame('in-game-song.mp3', AudioBus.music),
   stadium('stadium.wav', AudioBus.crowd),
   suspense('suspense.wav', AudioBus.music);
 
@@ -58,11 +59,17 @@ class AudioMix {
 
 /// Desired loop levels, independent of mute, loading and app lifecycle.
 class AudioScene {
-  const AudioScene({this.menu = 0, this.stadium = 0, this.suspense = 0});
-  final double menu, stadium, suspense;
+  const AudioScene({
+    this.menu = 0,
+    this.inGame = 0,
+    this.stadium = 0,
+    this.suspense = 0,
+  });
+  final double menu, inGame, stadium, suspense;
 
   double levelFor(AudioLoop loop) => switch (loop) {
     AudioLoop.menu => menu,
+    AudioLoop.inGame => inGame,
     AudioLoop.stadium => stadium,
     AudioLoop.suspense => suspense,
   };
@@ -138,9 +145,13 @@ class MatchSoundtrack {
         (model.lives == 1 || (model.isTimed && model.secondsRemaining <= 8));
     final suspense = !pressure ? 0.0
         : model.isTimed && model.secondsRemaining <= 4 ? .42 : .30;
-    // Let the contact sound and crowd reaction lead during shot feedback.
+    // Keep the bed quiet so kick, net and crowd cues stay readable.
     final feedback = model.phase == MatchPhase.result;
-    return AudioScene(stadium: stadium * (feedback ? .65 : 1),
-        suspense: suspense * (feedback ? .45 : 1));
+    final inGame = model.isPractice ? .14 : .20;
+    return AudioScene(
+      inGame: inGame * (feedback ? .40 : 1) * (suspense > 0 ? .55 : 1),
+      stadium: stadium * (feedback ? .65 : 1),
+      suspense: suspense * (feedback ? .45 : 1),
+    );
   }
 }

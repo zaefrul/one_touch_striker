@@ -55,6 +55,7 @@ void main() {
     match.endRun();
     final scene = MatchSoundtrack.sceneFor(match);
     expect(scene.menu, greaterThan(0));
+    expect(scene.inGame, 0);
     expect(scene.stadium, 0);
     expect(scene.suspense, 0);
   });
@@ -81,6 +82,8 @@ void main() {
 
   test('stands grow with progression while drills keep a quieter mix', () {
     final match = MatchModel()..prepareStage(0)..startStage();
+    expect(MatchSoundtrack.sceneFor(match).inGame, greaterThan(0));
+    expect(MatchSoundtrack.sceneFor(match).menu, 0);
     final academy = MatchSoundtrack.sceneFor(match).stadium;
     match.prepareStage(11);
     match.startStage();

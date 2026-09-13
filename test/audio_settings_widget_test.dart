@@ -70,6 +70,7 @@ void main() {
     expect(audio.suspended, isFalse);
     await tapText(tester, 'LET’S PLAY  →');
     expect(audio.scene.menu, 0);
+    expect(audio.scene.inGame, greaterThan(0));
     expect(audio.scene.stadium, greaterThan(0));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
