@@ -6,7 +6,7 @@ import 'star_rewards_panel.dart';
 class HomePanel extends StatelessWidget {
   const HomePanel({super.key, required this.progress, required this.loaded,
       required this.onQuickPlay, required this.onStages, required this.onClassic,
-      required this.onRewards, required this.onPractice});
+      required this.onRewards, required this.onPractice, this.onAudio});
 
   final ChallengeProgress progress;
   final bool loaded;
@@ -15,6 +15,7 @@ class HomePanel extends StatelessWidget {
   final VoidCallback onClassic;
   final VoidCallback onRewards;
   final VoidCallback onPractice;
+  final VoidCallback? onAudio;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +85,10 @@ class HomePanel extends StatelessWidget {
       const Text('Goal +1 · Corner +3\nNo timer. Three misses end your Classic run.',
           textAlign: TextAlign.center,
           style: TextStyle(fontSize: 11, color: Colors.white54, height: 1.4)),
+      const SizedBox(height: 8),
+      TextButton.icon(onPressed: onAudio,
+          icon: const Icon(Icons.tune_rounded, size: 18),
+          label: const Text('AUDIO MIX')),
     ]);
   }
 }

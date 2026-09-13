@@ -17,6 +17,7 @@ import 'ui/star_rewards_panel.dart';
 import 'ui/home_panel.dart';
 import 'ui/shot_gesture_surface.dart';
 import 'ui/practice_panel.dart';
+import 'ui/audio_settings_sheet.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -64,6 +65,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final rivals = RivalLedger();
   final cosmetics = CosmeticSelection();
   final practiceProgress = PracticeProgress();
+  final soundtrack = MatchSoundtrack();
   late final StrikerGame game;
   late final StrikerAudio audio;
   late final Widget _pitch;
@@ -71,6 +73,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   bool haptics = true;
   bool sound = true;
   bool _soundChanged = false;
+  AudioMix _audioMix = const AudioMix();
   bool _foreground = true;
   bool storageAvailable = true;
   bool _progressLoaded = false;
@@ -90,6 +93,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _foreground = lifecycle == null || lifecycle == AppLifecycleState.resumed;
     game = StrikerGame(model, onChanged: _refresh, onShotResult: _result);
     audio = widget.audio ?? StrikerAudio();
     // Honour saved mute before allowing a cue; preload without delaying menus.
@@ -136,6 +141,16 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       } catch (_) {
         if (mounted) setState(() => storageAvailable = false);
       }
+      // Optional mix keys cannot prevent stars, records or the old mute key
+      // from loading. Settings open only after this initial read completes.
+      try {
+        final music = await prefs.getBool(AudioMix.storageKey(AudioBus.music)) ?? true;
+        final effects = await prefs.getBool(AudioMix.storageKey(AudioBus.effects)) ?? true;
+        final crowd = await prefs.getBool(AudioMix.storageKey(AudioBus.crowd)) ?? true;
+        if (mounted) _audioMix = AudioMix(music: music, effects: effects, crowd: crowd);
+      } catch (_) {
+        if (mounted) storageAvailable = false;
+      }
       try {
         final savedRivals = await prefs.getString(RivalLedger.storageKey);
         if (mounted) {
@@ -166,8 +181,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     } finally {
       game.trace.event('storage.load.end');
       if (mounted) {
-        audio.enabled = sound;
+        audio.mix = _audioMix;
         setState(() => _progressLoaded = true);
+        _syncAudio();
       }
     }
   }
@@ -197,7 +213,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _refresh() {
     if (mounted) {
-      audio.suspended = !_foreground || game.matchPaused;
+      _syncAudio();
       final starsBefore = progress.totalStars;
       if (model.isChallenge && model.phase == MatchPhase.stageCleared &&
           progress.recordClear(model.stageIndex!, model.earnedStars)) {
@@ -226,15 +242,46 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _syncAudio() {
+    final frame = soundtrack.update(model);
+    // Set current intent while still muted/suspended, then allow playback.
+    audio.setScene(frame.scene);
+    audio.suspended = !_foreground || game.matchPaused;
+    audio.enabled = _progressLoaded && sound;
+    for (final cue in frame.cues) {
+      audio.play(cue);
+    }
+  }
+
+  void _setSound(bool value) {
+    setState(() {
+      _soundChanged = true;
+      sound = value;
+    });
+    _syncAudio();
+    _saveBool('sound', sound);
+  }
+
+  void _setAudioBus(AudioBus bus, bool enabled) {
+    setState(() => _audioMix = _audioMix.withBus(bus, enabled));
+    audio.mix = _audioMix;
+    _saveBool(AudioMix.storageKey(bus), enabled);
+  }
+
+  void _openAudioSettings() {
+    if (!_progressLoaded) return;
+    unawaited(showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .85),
+      builder: (_) => AudioSettingsSheet(enabled: sound, mix: _audioMix,
+          paused: game.matchPaused, onEnabled: _setSound, onBus: _setAudioBus),
+    ));
+  }
+
   void _result() {
-    audio.play(model.lastWasGoal
-        ? (model.lastWasFire ? ShotSound.fireGoal : ShotSound.net)
-        : model.lastWasPost
-            ? ShotSound.post
-            : model.message == 'JUST WIDE!'
-                ? ShotSound.wide
-                : ShotSound.save);
-    if (model.justChargedFire) audio.play(ShotSound.charge);
     // Stage attempts have their own rewards; keep the Classic record comparable.
     if (model.isClassic && model.score > best) {
       best = model.score;
@@ -274,7 +321,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       model.score > _bestBeforeRun;
 
   void _startClassic() {
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = _showRewards = _showPractice = false;
     _newRewards = const [];
     _bestBeforeRun = best;
@@ -299,7 +346,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     _showPractice = false;
     _newRewards = const [];
     _classicRunActive = false;
-    audio.stopAll();
+    audio.stopEffects();
     game.prepareStage(index, guided: index == 0 && progress.starsFor(0) == 0);
   }
 
@@ -316,18 +363,18 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _retryStage() {
-    audio.stopAll();
+    audio.stopEffects();
     _newRewards = const [];
     game.retryStage();
   }
 
   void _endRun() {
-    audio.stopAll();
+    audio.stopEffects();
     game.endRun();
   }
 
   void _stageMap() {
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = true;
     _showRewards = false;
     _showPractice = false;
@@ -337,7 +384,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _home() {
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = false;
     _showRewards = false;
     _showPractice = false;
@@ -348,7 +395,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _openRewards() {
     if (!_progressLoaded || model.isPlaying) return;
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = _showStages || model.isChallenge;
     _showRewards = true;
     _showPractice = false;
@@ -360,7 +407,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _practiceMenu() {
     if (!_progressLoaded) return;
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = _showRewards = false;
     _showPractice = true;
     _classicRunActive = false;
@@ -370,7 +417,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _startPractice(PracticeDrill drill) {
     if (!_progressLoaded) return;
-    audio.stopAll();
+    audio.stopEffects();
     _showStages = _showRewards = _showPractice = false;
     _classicRunActive = false;
     _newRewards = const [];
@@ -449,14 +496,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                 fontSize: 16))),
                     IconButton(
                       tooltip: sound ? 'Turn sound off' : 'Turn sound on',
-                      onPressed: () {
-                        setState(() {
-                          _soundChanged = true;
-                          sound = !sound;
-                          audio.enabled = sound;
-                        });
-                        _saveBool('sound', sound);
-                      },
+                      onPressed: () => _setSound(!sound),
                       icon: Icon(sound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
                           size: 20, color: Colors.white60),
                     ),
@@ -652,7 +692,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     if (ready) {
       return HomePanel(progress: progress, loaded: _progressLoaded,
           onQuickPlay: _quickPlay, onStages: _stageMap,
-          onClassic: _startClassic, onRewards: _openRewards, onPractice: _practiceMenu);
+          onClassic: _startClassic, onRewards: _openRewards, onPractice: _practiceMenu,
+          onAudio: _progressLoaded ? _openAudioSettings : null);
     }
     if (model.isPractice && finished && !game.matchPaused) {
       return PracticeResultPanel(model: model, best: practiceProgress.bestFor(model.practice!),
@@ -709,6 +750,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         RunSummary(model: model, personalBest: _personalBest, previousBest: _bestBeforeRun),
         TextButton(onPressed: _home, child: const Text('HOME & CHALLENGES')),
       ] else ...[
+        TextButton.icon(onPressed: _progressLoaded ? _openAudioSettings : null,
+            icon: const Icon(Icons.tune_rounded, size: 18),
+            label: const Text('AUDIO MIX')),
         Padding(padding: const EdgeInsets.only(top: 10),
             child: TextButton(onPressed: _endRun,
                 child: Text(model.isPractice ? 'END DRILL' : model.isChallenge ? 'END STAGE' : 'END RUN',

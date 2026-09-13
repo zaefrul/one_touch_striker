@@ -49,6 +49,15 @@ knuckle timing, with saved bests and immediate retry. See
 [controls, drill rules and local handoff](KNUCKLE_PRACTICE.md). This is a source
 publication without executed checks or builds; chips and driven shots are later.
 
+**Stadium audio** adds an original menu theme, a crowd bed that grows with
+progression, last-chance/countdown suspense, separate defender blocks, fan
+reactions, whistles and match-end stings. Home and pause offer **AUDIO MIX**
+for saved Music, Shot effects and Crowd switches; the header retains master
+mute. Loops fade between scenes and stop on pause/background. See
+[the audio rules and local listening handoff](AUDIO_EXPERIENCE.md) and
+[asset provenance](assets/AUDIO.md). The pack is about 1.8 MB before packaging;
+native playback, loop continuity and performance still need device validation.
+
 ## Run on your machine
 
 Install stable Flutter and the platform toolchain, then clone this repository:
@@ -171,7 +180,8 @@ See [the full drill rules](KNUCKLE_PRACTICE.md).
 - Release-to-shoot input, adjustable sidespin/banana bends, matching physical preview and pointer cancellation
 - Manual timed knuckles, a blue release ring and separate technique/outcome feedback
 - Three five-ball practice drills, saved per-drill bests, attempt history and direct retry
-- Preloaded sound effects, independent saved mute and lifecycle cleanup
+- Thirteen preloaded effects, menu/crowd/suspense loops and lifecycle cleanup
+- Saved master mute and independent Music, Shot effects and Crowd switches
 - Touch semantics and tooltips (the visual timing mechanic is not fully screen-reader accessible)
 - Existing simulation and widget regression cases, plus new challenge cases prepared for local execution
 
@@ -195,7 +205,8 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/game/keeper_skill.dart` | Tier abilities, reaction delays, body travel and marking limits |
 | `lib/game/keeper_controller.dart` | Delayed commitment, rush schedule, recovery and learned coverage |
 | `lib/game/keeper_pose.dart` | Shared articulated body parts for drawing and collision |
-| `lib/game/striker_audio.dart` | Preloaded effects, playback cleanup and mute control |
+| `lib/game/striker_audio.dart` | Preloaded effects, cancellable loop fades and mute/lifecycle control |
+| `lib/game/audio_cues.dart` | Typed match events, pressure/crowd mix and sound catalogue |
 | `lib/game/striker_game.dart` | Flame adapter and procedural rendering |
 | `lib/game/shot_trail.dart` | Fixed-interval trail sampling with reusable storage |
 | `lib/game/playtest_trace.dart` | Opt-in local DevTools phase markers |
@@ -205,6 +216,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | `lib/ui/shot_gesture_surface.dart` | Single-pointer capture, fitted drag scale, release and cancellation |
 | `lib/ui/run_summary.dart` | Shared result statistics and personal-best badge |
 | `lib/ui/practice_panel.dart` | Drill selection, instructions, attempt history and practice result/retry |
+| `lib/ui/audio_settings_sheet.dart` | Saved master, music, effects and crowd controls |
 | `test/match_model_test.dart` | Shot lock, multiplier, misses, keeper, corners and frame gaps |
 | `test/widget_test.dart` | Menu-to-game smoke check |
 | `test/challenge_model_test.dart` | Objective, timer, buzzer-shot, retry and star-save regression cases |
