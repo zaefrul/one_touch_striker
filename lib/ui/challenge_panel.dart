@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../game/challenge_stage.dart';
+import '../game/first_touch_guide.dart';
 import '../game/match_model.dart';
 import '../game/rival_ledger.dart';
 import '../game/showdown.dart';
@@ -223,6 +224,13 @@ class StagePanel extends StatelessWidget {
         Text(model.earnedStars == 3 ? 'PERFECT CLEAR!' : 'STAGE COMPLETE!',
             style: TextStyle(color: accent, fontWeight: FontWeight.w900, letterSpacing: 1)),
         const SizedBox(height: 10),
+        if (model.isGuidedFirstMatch) ...[
+          const Text(
+              'First match cleared! Stars unlock the Rival Cup. Practice Arena teaches curve and knuckle shots. Classic is an endless score chase.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
+          const SizedBox(height: 10),
+        ],
       ],
       if (cleared && newRewards.isNotEmpty) ...[
         const SizedBox(height: 16),
@@ -329,7 +337,14 @@ class _StageBriefing extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stage = model.stage!;
+    final guided = model.isGuidedFirstMatch;
     return Column(mainAxisSize: MainAxisSize.min, children: [
+      if (guided) ...[
+        const Text('YOUR FIRST MATCH', textAlign: TextAlign.center,
+            style: TextStyle(color: Color(0xffd9ff6a), fontSize: 10,
+                letterSpacing: 2, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+      ],
       Text('STAGE ${model.level} · ${stage.name}', textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w700)),
       const SizedBox(height: 20),
@@ -339,11 +354,20 @@ class _StageBriefing extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(color: Color(stage.keeper.kitColor), fontWeight: FontWeight.w700)),
       const SizedBox(height: 20),
+      if (guided) ...[
+        // One coach line; the live coach on the pitch takes over after START.
+        Text(FirstTouchLesson.aim.instruction, textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.5)),
+        const SizedBox(height: 14),
+      ],
       SizedBox(width: double.infinity, child: FilledButton(onPressed: onStart,
           child: const Padding(padding: EdgeInsets.symmetric(vertical: 16),
               child: Text('START STAGE  →', style: TextStyle(fontWeight: FontWeight.w900))))),
       const SizedBox(height: 12),
-      ExpansionTile(title: const Text('Match tips', style: TextStyle(fontSize: 13)),
+      // The tile paints its ink on the nearest Material; the dimmed overlay
+      // ColoredBox above it would otherwise hide that and trip a debug assert.
+      Material(type: MaterialType.transparency, child: ExpansionTile(
+        title: const Text('Match tips', style: TextStyle(fontSize: 13)),
         childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12), children: [
           Text(recordsAvailable ? '${stage.keeper.title} · ${rivals.against(stage.keeper).scoreline}'
               : 'Rival record unavailable', textAlign: TextAlign.center,
@@ -371,7 +395,7 @@ class _StageBriefing extends StatelessWidget {
           const Text('Stars: 0 misses = 3 · 1 miss = 2 · 2 misses = 1',
               textAlign: TextAlign.center, style: TextStyle(color: Colors.white54, fontSize: 11)),
         ],
-      ),
+      )),
       TextButton(onPressed: onStages, child: const Text('STAGE SELECT')),
     ]);
   }

@@ -13,6 +13,7 @@ import 'game/practice_drill.dart';
 import 'game/practice_progress.dart';
 import 'game/tutorial_progress.dart';
 import 'ui/challenge_panel.dart';
+import 'ui/first_touch_coach.dart';
 import 'ui/run_summary.dart';
 import 'ui/star_rewards_panel.dart';
 import 'ui/home_panel.dart';
@@ -21,6 +22,7 @@ import 'ui/practice_panel.dart';
 import 'ui/audio_settings_sheet.dart';
 import 'ui/stage_objective.dart';
 import 'ui/tutorial_screen.dart';
+import 'ui/welcome_page.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -271,22 +273,67 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// First-launch introduction. Play continues into the aim lesson and the
+  /// first match; Skip dismisses every automatic lesson and opens Stage 1.
+  Future<void> _welcome() async {
+    if (!mounted || _tutorialOpen || !_foreground) return;
+    _tutorialOpen = true;
+    _welcomePending = false;
+    var play = false;
+    final wasPaused = game.matchPaused;
+    game.matchPaused = true;
+    game.pauseEngine();
+    _syncAudio();
+    try {
+      final route = MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (welcomeContext) => WelcomePage(
+          onPlay: () {
+            play = true;
+            Navigator.of(welcomeContext).pop();
+          },
+          onSkip: () {
+            tutorials.skipAll();
+            _saveTutorials();
+            Navigator.of(welcomeContext).pop();
+          },
+        ),
+      );
+      await Navigator.of(context).push<void>(route);
+      await route.completed;
+    } finally {
+      _tutorialOpen = false;
+      if (mounted) {
+        game.matchPaused = wasPaused || (!_foreground && model.isPlaying);
+        if (_foreground) game.resumeEngine();
+        _refresh();
+        if (play) {
+          unawaited(_teach([TutorialLesson.aim], after: _quickPlay));
+        } else {
+          _quickPlay();
+        }
+      }
+    }
+  }
+
   void _maybeTeach() {
     if (!widget.autoTutorials || !_progressLoaded || !_foreground ||
         _tutorialOpen || _tutorialScheduled) return;
     final welcome = _welcomePending && tutorials.needs(TutorialLesson.aim) && model.phase == MatchPhase.ready;
+    // The guided first match coaches Fire on the pitch instead of a modal.
     final fire = model.phase == MatchPhase.aiming && !game.matchPaused &&
-        !model.isPreparingShot && model.fireReady && tutorials.needs(TutorialLesson.fire);
+        !model.isPreparingShot && model.fireReady && !model.isGuidedFirstMatch &&
+        tutorials.needs(TutorialLesson.fire);
     if (!welcome && !fire) return;
     _tutorialScheduled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _tutorialScheduled = false;
       if (!mounted || !_foreground || _tutorialOpen) return;
       if (_welcomePending && tutorials.needs(TutorialLesson.aim) && model.phase == MatchPhase.ready) {
-        _welcomePending = false;
-        unawaited(_teach([TutorialLesson.aim], after: _quickPlay));
+        unawaited(_welcome());
       } else if (model.phase == MatchPhase.aiming && !game.matchPaused &&
-          !model.isPreparingShot && model.fireReady && tutorials.needs(TutorialLesson.fire)) {
+          !model.isPreparingShot && model.fireReady && !model.isGuidedFirstMatch &&
+          tutorials.needs(TutorialLesson.fire)) {
         unawaited(_teach([TutorialLesson.fire]));
       }
     });
@@ -404,6 +451,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   void _result() {
+    // A Fire shot released with the live coach counts as the Fire lesson.
+    if (model.isGuidedFirstMatch && model.shotIsFire && tutorials.needs(TutorialLesson.fire)) {
+      tutorials.complete(TutorialLesson.fire);
+      _saveTutorials();
+    }
     // Stage attempts have their own rewards; keep the Classic record comparable.
     if (model.isClassic && model.score > best) {
       best = model.score;
@@ -475,7 +527,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     _newRewards = const [];
     _classicRunActive = false;
     audio.stopEffects();
-    game.prepareStage(index);
+    // The live coach runs only until Stage 1 has been cleared once.
+    game.prepareStage(index, guided: index == 0 && progress.starsFor(0) == 0);
   }
 
   void _quickPlay() {
@@ -727,6 +780,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                       onAccessibleShot: _shoot,
                       child: _pitch,
                     ),
+                    // Live first-match coach reads the model; it never takes input.
+                    if (FirstTouchCoach.shouldShow(model, paused: game.matchPaused))
+                      IgnorePointer(child: FirstTouchCoach(model: model)),
                     if (model.isPlaying &&
                         !game.matchPaused &&
                         (model.lastChance || model.onFire))

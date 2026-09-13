@@ -27,7 +27,10 @@ class PracticeMenu extends StatelessWidget {
     const Text('Every released ball is one attempt.\nLearn a technique and beat your best out of five.',
         textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, height: 1.4)),
     if (onTutorial != null)
-      ExpansionTile(title: const Text('Replay tutorials'),
+      // Tiles paint ink on the nearest Material; the dimmed overlay ColoredBox
+      // above would otherwise hide it and trip a debug assert.
+      Material(type: MaterialType.transparency, child: ExpansionTile(
+        title: const Text('Replay tutorials'),
         leading: const Icon(Icons.touch_app_outlined, color: _blue),
         children: [
           if (onReplayTutorial != null)
@@ -37,7 +40,7 @@ class PracticeMenu extends StatelessWidget {
             ListTile(title: Text(lesson.title), trailing: const Icon(Icons.play_arrow_rounded),
                 onTap: () => onTutorial!(lesson)),
         ],
-      ),
+      )),
     for (final drill in PracticeDrill.values)
       Container(width: double.infinity, margin: const EdgeInsets.only(top: 14),
         padding: const EdgeInsets.all(16),
