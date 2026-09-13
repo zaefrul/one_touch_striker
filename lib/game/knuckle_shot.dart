@@ -3,7 +3,7 @@ import 'dart:math' as math;
 enum StrikeTiming { tap, early, clean, late, adjusted }
 
 /// Initial arcade tuning. Timing uses active simulation time, before cinematic
-/// slow motion. One hold gets one window; there is no automatic kick or loop.
+/// slow motion. The window repeats each revolution; only release can launch a shot.
 abstract final class KnuckleShot {
   static const tapLimit = .20;
   static const sweetStart = .55;
@@ -11,12 +11,18 @@ abstract final class KnuckleShot {
   static const ringDuration = 1.0;
   static const maxWobble = 14.0;
 
-  static StrikeTiming timingAt(double seconds) => seconds < tapLimit
-      ? StrikeTiming.tap : seconds < sweetStart ? StrikeTiming.early
-          : seconds <= sweetEnd ? StrikeTiming.clean : StrikeTiming.late;
+  static double phaseAt(double seconds) => seconds % ringDuration;
 
-  static const releaseLabels = ['STRAIGHT · RELEASE', 'HOLD STILL · WATCH BLUE ZONE',
-      'KNUCKLE READY · RELEASE', 'TOO LATE · STRAIGHT SHOT'];
+  static StrikeTiming timingAt(double seconds) {
+    // A quick tap only exists at the start of a hold, not after every wrap.
+    if (seconds < tapLimit) return StrikeTiming.tap;
+    final phase = phaseAt(seconds);
+    return phase < sweetStart ? StrikeTiming.early
+        : phase <= sweetEnd ? StrikeTiming.clean : StrikeTiming.late;
+  }
+
+  static const releaseLabels = ['RELEASE', 'WAIT FOR ZONE',
+      'KNUCKLE · RELEASE', 'WAIT FOR NEXT ZONE'];
 
   static String releaseLabel(double seconds) => switch (timingAt(seconds)) {
     StrikeTiming.tap => releaseLabels[0],

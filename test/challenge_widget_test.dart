@@ -20,7 +20,7 @@ void main() {
   });
 
   testWidgets('stage briefing, end and retry stay in the same challenge', (tester) async {
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     expect(find.text('12 stages.\nEarn your stars.'), findsOneWidget);
@@ -37,14 +37,14 @@ void main() {
     await tapVisible(tester, 'RETRY STAGE  ↻');
     expect(find.text('START STAGE  →'), findsNothing);
     expect(find.byTooltip('Pause'), findsOneWidget);
-    expect(find.text('0/3 GOALS'), findsOneWidget);
-    expect(find.text('0/2 GOALS TO FIRE'), findsOneWidget);
+    expect(find.text('0/3 goals'), findsOneWidget);
+    expect(find.text('FIRE'), findsOneWidget);
   });
 
   testWidgets('saved stars unlock the timed stage and pause freezes its clock', (tester) async {
     await SharedPreferencesAsync().setStringList(
         ChallengeProgress.storageKey, ['3', '3', '3', '0', '0', '0']);
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     expect(find.text('9/36 stars collected'), findsOneWidget);
@@ -67,39 +67,39 @@ void main() {
   testWidgets('a legacy campaign save opens stage seven from the map', (tester) async {
     await SharedPreferencesAsync().setStringList(
         ChallengeProgress.storageKey, ['3', '3', '3', '3', '3', '3']);
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     expect(find.text('18/36 stars collected'), findsOneWidget);
     await tapVisible(tester, 'PLAY STAGE 7  →');
-    expect(find.text('Pressure Cooker'), findsOneWidget);
+    expect(find.text('STAGE 7 · Pressure Cooker'), findsOneWidget);
     expect(find.text('Score 5 goals'), findsOneWidget);
     await tapVisible(tester, 'START STAGE  →');
-    expect(find.text('0/5 GOALS'), findsOneWidget);
+    expect(find.text('0/5 goals'), findsOneWidget);
     expect(find.byTooltip('Pause'), findsOneWidget);
   });
 
   testWidgets('the triple-wall stage renders its third defender on entry', (tester) async {
     await SharedPreferencesAsync().setStringList(
         ChallengeProgress.storageKey, List.filled(8, '3'));
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapVisible(tester, 'PLAY CHALLENGES');
     await tapVisible(tester, 'PLAY STAGE 9  →');
-    expect(find.text('ELITE · Marks your last side'), findsOneWidget);
+    expect(find.text('VS The Gambler · Elite'), findsOneWidget);
     await tapVisible(tester, 'START STAGE  →');
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(milliseconds: 16));
     }
     expect(tester.takeException(), isNull);
-    expect(find.text('0/5 GOALS'), findsOneWidget);
+    expect(find.text('0/5 goals'), findsOneWidget);
     expect(find.byTooltip('Pause'), findsOneWidget);
   });
 
   testWidgets('saved sound preference loads and a toggle persists for relaunch', (tester) async {
     final prefs = SharedPreferencesAsync();
     await prefs.setBool('sound', false);
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.byTooltip('Turn sound on'), findsOneWidget);
     await tester.tap(find.byTooltip('Turn sound on'));

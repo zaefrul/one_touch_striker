@@ -193,10 +193,6 @@ class StrikerGame extends FlameGame {
     final canvas = Canvas(recorder);
     _pitch(canvas);
     _goal(canvas);
-    _label(canvas, model.isPractice ? 'FIVE BALLS. FIND YOUR TOUCH.' : model.isChallenge
-        ? '${model.keeperSkill.title.toUpperCase()} · ${model.keeperStyle.title.toUpperCase()}'
-        : 'ONE TOUCH. MAKE IT COUNT.', 200, 619, 10,
-        const Color(0xff75b3a1), spacing: 2);
     _fieldPicture = recorder.endRecording();
   }
 
@@ -655,9 +651,6 @@ class StrikerGame extends FlameGame {
         const Offset(200, 548),
         (model.showTapCue ? 24 : 20) + math.sin(model.clock * 3) * 2,
         _aimRingPaint);
-    if (model.showTapCue) {
-      _label(c, 'TAP', 200, 575, 12, const Color(0xffd9ff6a), spacing: 2.5);
-    }
   }
 
   void _preparedAim(Canvas c) {
@@ -686,7 +679,7 @@ class StrikerGame extends FlameGame {
     _label(c, model.preparedReleaseLabel,
         200, 585, 10, model.canTimeKnuckle
             ? const Color(0xff7edfff) : const Color(0xffd9ff6a), spacing: 1);
-    if (model.canTimeKnuckle) _knuckleRing(c);
+    _knuckleRing(c);
     c.drawLine(const Offset(152, 602), const Offset(248, 602), _spinTrackPaint);
     c.drawLine(const Offset(200, 597), const Offset(200, 607), _spinTrackPaint);
     if (model.preparedSpin != 0) {
@@ -721,12 +714,12 @@ class StrikerGame extends FlameGame {
     const radius = 32.0;
     final ring = Rect.fromCircle(center: centre, radius: radius);
     c.drawCircle(centre, radius, _timingTrackPaint);
-    c.drawArc(ring, -math.pi / 2 + 2 * math.pi * KnuckleShot.sweetStart / KnuckleShot.ringDuration,
+    if (model.canTimeKnuckle) c.drawArc(ring, -math.pi / 2 + 2 * math.pi * KnuckleShot.sweetStart / KnuckleShot.ringDuration,
         2 * math.pi * (KnuckleShot.sweetEnd - KnuckleShot.sweetStart) / KnuckleShot.ringDuration,
         false, _timingZonePaint);
-    final angle = -math.pi / 2 + 2 * math.pi * model.heldSeconds / KnuckleShot.ringDuration;
+    final angle = -math.pi / 2 + 2 * math.pi * model.timingPhase / KnuckleShot.ringDuration;
     c.drawCircle(centre + Offset(math.cos(angle), math.sin(angle)) * radius,
-        4, _timingMarkerPaint);
+        4, model.canTimeKnuckle ? _timingMarkerPaint : _aimDotPaint);
   }
 
   void _ball(Canvas c) {

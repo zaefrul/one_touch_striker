@@ -60,7 +60,14 @@ class ChallengeStage {
         StageObjective.points => 'points',
       };
 
-  String get objectiveLabel => 'Score $target $unit';
+  String get objectiveLabel => showdown == Showdown.cornerDuel
+      ? 'Score in both corners' : 'Score $target $unit';
+  String? get extraObjectiveLabel => switch (showdown) {
+    Showdown.fireFinish => 'Finish with a Fire goal',
+    Showdown.rushHour => 'Beat a rushing keeper at least once',
+    Showdown.championFinal => 'Finish with a Fire corner',
+    _ => null,
+  };
   String get fireChargeUnit =>
       objective == StageObjective.corners ? 'corner goal' : 'goal';
   String get fireRule =>

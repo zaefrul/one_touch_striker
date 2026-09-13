@@ -11,6 +11,12 @@ enum PracticeDrill {
   static const balls = 5;
   static const targetHalfWidth = 18.0;
 
+  String get shortRule => switch (this) {
+    corners => 'Hit the marked corner',
+    curveWall => 'Bend into the marked target',
+    knuckle => 'Score with a clean knuckle',
+  };
+
   bool get hasTarget => this != knuckle;
   double targetX(int ballIndex) => ballIndex.isEven ? 91 : 309;
   bool targetContains(double x, int ballIndex) =>

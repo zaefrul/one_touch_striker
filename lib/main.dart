@@ -11,6 +11,7 @@ import 'game/rival_ledger.dart';
 import 'game/star_rewards.dart';
 import 'game/practice_drill.dart';
 import 'game/practice_progress.dart';
+import 'game/tutorial_progress.dart';
 import 'ui/challenge_panel.dart';
 import 'ui/run_summary.dart';
 import 'ui/star_rewards_panel.dart';
@@ -18,6 +19,8 @@ import 'ui/home_panel.dart';
 import 'ui/shot_gesture_surface.dart';
 import 'ui/practice_panel.dart';
 import 'ui/audio_settings_sheet.dart';
+import 'ui/stage_objective.dart';
+import 'ui/tutorial_screen.dart';
 
 const lime = Color(0xffd9ff6a);
 const ink = Color(0xff062d29);
@@ -34,8 +37,9 @@ Future<void> main() async {
 }
 
 class StrikerApp extends StatelessWidget {
-  const StrikerApp({super.key, this.audio});
+  const StrikerApp({super.key, this.audio, this.autoTutorials = true});
   final StrikerAudio? audio;
+  final bool autoTutorials;
   @override
   Widget build(BuildContext context) => MaterialApp(
         title: 'One-Touch Striker',
@@ -47,13 +51,14 @@ class StrikerApp extends StatelessWidget {
           fontFamily: 'sans-serif',
           useMaterial3: true,
         ),
-        home: MatchScreen(audio: audio),
+        home: MatchScreen(audio: audio, autoTutorials: autoTutorials),
       );
 }
 
 class MatchScreen extends StatefulWidget {
-  const MatchScreen({super.key, this.audio});
+  const MatchScreen({super.key, this.audio, this.autoTutorials = true});
   final StrikerAudio? audio;
+  final bool autoTutorials;
   @override
   State<MatchScreen> createState() => _MatchScreenState();
 }
@@ -65,6 +70,10 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   final rivals = RivalLedger();
   final cosmetics = CosmeticSelection();
   final practiceProgress = PracticeProgress();
+  final tutorials = TutorialProgress();
+  bool _tutorialOpen = false, _tutorialScheduled = false;
+  bool _tutorialSavingAvailable = true, _hasExistingSave = false;
+  bool _welcomePending = false;
   final soundtrack = MatchSoundtrack();
   late final StrikerGame game;
   late final StrikerAudio audio;
@@ -131,6 +140,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         final feedback = await prefs.getBool('haptics') ?? true;
         final savedSound = await prefs.getBool('sound') ?? true;
         final savedStars = await prefs.getStringList(ChallengeProgress.storageKey);
+        _hasExistingSave = savedStars != null || saved > 0;
         if (mounted) {
           setState(() {
             haptics = feedback;
@@ -171,11 +181,29 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       }
       try {
         final savedPractice = await prefs.getString(PracticeProgress.storageKey);
+        _hasExistingSave = _hasExistingSave || savedPractice != null;
         if (mounted) {
           _practiceHistoryAvailable = practiceProgress.restore(savedPractice);
           if (!_practiceHistoryAvailable) storageAvailable = false;
         }
       } catch (_) {
+        if (mounted) storageAvailable = false;
+      }
+      try {
+        final savedTutorials = await prefs.getString(TutorialProgress.storageKey);
+        if (mounted) {
+          _tutorialSavingAvailable = tutorials.restore(savedTutorials);
+          if (!_tutorialSavingAvailable) storageAvailable = false;
+          // Existing play progress demonstrates basic shot control.
+          if (savedTutorials == null && _hasExistingSave) {
+            tutorials.complete(TutorialLesson.aim);
+            _saveTutorials();
+          }
+          _welcomePending = widget.autoTutorials && _tutorialSavingAvailable &&
+              !_hasExistingSave && tutorials.needs(TutorialLesson.aim);
+        }
+      } catch (_) {
+        _tutorialSavingAvailable = false;
         if (mounted) storageAvailable = false;
       }
     } finally {
@@ -184,7 +212,100 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         audio.mix = _audioMix;
         setState(() => _progressLoaded = true);
         _syncAudio();
+        _maybeTeach();
       }
+    }
+  }
+
+  void _saveTutorials() {
+    if (!_tutorialSavingAvailable) return;
+    final saved = tutorials.encode();
+    _enqueueWrite(() => prefs.setString(TutorialProgress.storageKey, saved));
+  }
+
+  List<TutorialLesson> _needed(Iterable<TutorialLesson> lessons) => widget.autoTutorials
+      ? lessons.where(tutorials.needs).toList() : const [];
+
+  Future<void> _teach(List<TutorialLesson> lessons,
+      {VoidCallback? after, bool replay = false}) async {
+    if (!mounted || _tutorialOpen || !_foreground || lessons.isEmpty) return;
+    _tutorialOpen = true;
+    if (lessons.contains(TutorialLesson.aim)) _welcomePending = false;
+    final wasPaused = game.matchPaused;
+    game.matchPaused = true;
+    game.pauseEngine();
+    _syncAudio();
+    try {
+      final route = MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (lessonContext) => TutorialScreen(
+          lessons: lessons,
+          fireStageIndex: model.stageIndex ?? 0,
+          onKick: _kickFeedback,
+          onComplete: (lesson) {
+            tutorials.complete(lesson);
+            _saveTutorials();
+          },
+          onSkip: () {
+            if (!replay) {
+              tutorials.skipAll();
+              _saveTutorials();
+            }
+            Navigator.of(lessonContext).pop();
+          },
+          onDone: () => Navigator.of(lessonContext).pop(),
+        ),
+      );
+      await Navigator.of(context).push<void>(route);
+      // Keep the match frozen until the lesson's exit transition is removed.
+      await route.completed;
+    } finally {
+      _tutorialOpen = false;
+      if (mounted) {
+        game.matchPaused = wasPaused || (!_foreground && model.isPlaying);
+        if (_foreground) game.resumeEngine();
+        _refresh();
+        after?.call();
+        if (!_foreground && model.isPlaying) game.matchPaused = true;
+      }
+    }
+  }
+
+  void _maybeTeach() {
+    if (!widget.autoTutorials || !_progressLoaded || !_foreground ||
+        _tutorialOpen || _tutorialScheduled) return;
+    final welcome = _welcomePending && tutorials.needs(TutorialLesson.aim) && model.phase == MatchPhase.ready;
+    final fire = model.phase == MatchPhase.aiming && !game.matchPaused &&
+        !model.isPreparingShot && model.fireReady && tutorials.needs(TutorialLesson.fire);
+    if (!welcome && !fire) return;
+    _tutorialScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _tutorialScheduled = false;
+      if (!mounted || !_foreground || _tutorialOpen) return;
+      if (_welcomePending && tutorials.needs(TutorialLesson.aim) && model.phase == MatchPhase.ready) {
+        _welcomePending = false;
+        unawaited(_teach([TutorialLesson.aim], after: _quickPlay));
+      } else if (model.phase == MatchPhase.aiming && !game.matchPaused &&
+          !model.isPreparingShot && model.fireReady && tutorials.needs(TutorialLesson.fire)) {
+        unawaited(_teach([TutorialLesson.fire]));
+      }
+    });
+  }
+
+  void _startStage() {
+    final index = model.stageIndex;
+    if (index == null || model.phase != MatchPhase.stageIntro) return;
+    final lessons = _needed([
+      TutorialLesson.aim,
+      if (index >= 1) ...[
+        TutorialLesson.curveLeft, TutorialLesson.curveRight, TutorialLesson.banana,
+      ],
+      if (index >= 2) TutorialLesson.knuckle,
+    ]);
+    if (lessons.isNotEmpty) {
+      unawaited(_teach(lessons, after: game.startStage));
+    } else {
+      game.startStage();
     }
   }
 
@@ -239,6 +360,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         });
       }
       setState(() {});
+      _maybeTeach();
     }
   }
 
@@ -246,7 +368,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     final frame = soundtrack.update(model);
     // Set current intent while still muted/suspended, then allow playback.
     audio.setScene(frame.scene);
-    audio.suspended = !_foreground || game.matchPaused;
+    audio.suspended = !_foreground || (game.matchPaused && !_tutorialOpen);
     audio.enabled = _progressLoaded && sound;
     for (final cue in frame.cues) {
       audio.play(cue);
@@ -321,6 +443,12 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       model.score > _bestBeforeRun;
 
   void _startClassic() {
+    if (!_progressLoaded) return;
+    final lessons = _needed([TutorialLesson.aim]);
+    if (lessons.isNotEmpty) {
+      unawaited(_teach(lessons, after: _startClassic));
+      return;
+    }
     audio.stopEffects();
     _showStages = _showRewards = _showPractice = false;
     _newRewards = const [];
@@ -347,7 +475,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     _newRewards = const [];
     _classicRunActive = false;
     audio.stopEffects();
-    game.prepareStage(index, guided: index == 0 && progress.starsFor(0) == 0);
+    game.prepareStage(index);
   }
 
   void _quickPlay() {
@@ -358,8 +486,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
     final index = progress.nextStageIndex;
     _selectStage(index);
-    // Stage 1 teaches through live shots. Later new stages retain their briefing.
-    if (index == 0) game.startStage();
+    // Every stage shows its short objective before the clock starts.
   }
 
   void _retryStage() {
@@ -417,6 +544,17 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _startPractice(PracticeDrill drill) {
     if (!_progressLoaded) return;
+    final lessons = _needed([
+      TutorialLesson.aim,
+      if (drill == PracticeDrill.curveWall) ...[
+        TutorialLesson.curveLeft, TutorialLesson.curveRight, TutorialLesson.banana,
+      ],
+      if (drill == PracticeDrill.knuckle) TutorialLesson.knuckle,
+    ]);
+    if (lessons.isNotEmpty) {
+      unawaited(_teach(lessons, after: () => _startPractice(drill)));
+      return;
+    }
     audio.stopEffects();
     _showStages = _showRewards = _showPractice = false;
     _classicRunActive = false;
@@ -439,6 +577,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     if (!_foreground && model.isPlaying) {
       game.matchPaused = true;
     }
+    if (_foreground && !_tutorialOpen) game.resumeEngine();
     _refresh();
   }
 
@@ -528,7 +667,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                           icon: const Icon(Icons.arrow_back_rounded)),
                   ]),
                 ),
-                Padding(
+                if (!ready && model.phase != MatchPhase.stageIntro) Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
                   child: Row(
@@ -544,8 +683,8 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                               model.score.toString().padLeft(2, '0'),
                               primary: true),
                           if (model.isChallenge)
-                            _stat(model.isTimed ? 'TIME LEFT' : 'STARS',
-                                model.isTimed ? '${model.timerSeconds}s' : '${progress.totalStars}/${challengeStages.length * 3}',
+                            _stat(model.isTimed ? 'TIME LEFT' : 'STAGE',
+                                model.isTimed ? '${model.timerSeconds}s' : '${model.level}/${challengeStages.length}',
                                 urgent: model.isTimed && model.timerSeconds <= 5)
                           else
                             _stat('BEST', '$best'),
@@ -577,7 +716,11 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                   child: Stack(fit: StackFit.expand, children: [
                     ShotGestureSurface(
                       enabled: model.phase == MatchPhase.aiming && !game.matchPaused,
-                      onBegin: game.beginShot,
+                      onBegin: () {
+                        final accepted = game.beginShot();
+                        if (accepted) setState(() {}); // Hide the previous correction once.
+                        return accepted;
+                      },
                       onDrag: (dx, dy) => game.adjustCurve(dx, dragY: dy),
                       onRelease: _releaseShot,
                       onCancel: game.cancelShot,
@@ -611,25 +754,16 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                       : const Color(0xffff777a),
                                   fontSize: model.lastWasCorner ? 34 : 28,
                                   fontWeight: FontWeight.w900)),
-                          const SizedBox(height: 4),
-                          Text(model.shotExplanation, textAlign: TextAlign.center,
-                              style: const TextStyle(color: Color(0xff7edfff), fontSize: 12,
-                                  fontWeight: FontWeight.w700)),
-                          const SizedBox(height: 4),
-                          Text(model.resultSubtitle,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                  letterSpacing: 1, fontSize: 11)),
-                          if (model.isPractice) ...[
-                            const SizedBox(height: 8),
+                          const SizedBox(height: 6),
+                          if (model.lastWasGoal)
+                            Text('+${model.lastPoints}', style: const TextStyle(
+                                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 19)),
+                          if (model.shotIsKnuckle || model.shotSpin != 0)
+                            Text(model.lastTechnique, textAlign: TextAlign.center,
+                                style: const TextStyle(color: Color(0xff7edfff), fontSize: 12)),
+                          if (model.isPractice)
                             Text(model.lastPracticeNote, textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
-                          ] else if (model.lastFailure != null) ...[
-                            const SizedBox(height: 8),
-                            Text(model.shotAdvice, textAlign: TextAlign.center,
-                                style: const TextStyle(fontSize: 12,
-                                    color: Colors.white70, height: 1.4)),
-                          ],
+                                style: const TextStyle(color: Colors.white70, fontSize: 12)),
                         ]),
                       ))),
                     if (ready || finished || stageOverlay || game.matchPaused)
@@ -678,7 +812,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   Widget _overlay(bool ready, bool finished) {
     if (ready && _showPractice) {
       return PracticeMenu(progress: practiceProgress, recordsAvailable: _practiceHistoryAvailable,
-          onSelect: _startPractice, onBack: _home);
+          onSelect: _startPractice, onBack: _home,
+          onTutorial: (lesson) => unawaited(_teach([lesson], replay: true)),
+          onReplayTutorial: () => unawaited(_teach(TutorialLesson.values, replay: true)));
     }
     if (ready && _showRewards) {
       return StarRewardsPanel(stars: progress.totalStars, selection: cosmetics,
@@ -709,7 +845,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         recordsAvailable: _rivalHistoryAvailable,
         newRewards: _newRewards,
         onRewards: _openRewards,
-        onStart: game.startStage,
+        onStart: _startStage,
         onRetry: _retryStage,
         onNext: () => model.isFinalStage ? _stageMap() : _selectStage(model.stageIndex! + 1),
         onStages: _stageMap,
@@ -767,31 +903,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
   }
 
   String _playHint() {
-    if (!storageAvailable) return 'PROGRESS SAVING UNAVAILABLE';
-    if (model.isGuidedFirstMatch) return model.firstTouchHint;
-    if (model.phase == MatchPhase.aiming && model.lastTechniqueAdvice.isNotEmpty) {
-      return model.lastTechniqueAdvice;
-    }
-    if ((model.phase == MatchPhase.aiming || model.phase == MatchPhase.result) &&
-        model.lastFailure != null) return model.shotAdvice;
-    final stage = model.stage;
-    if (stage != null) {
-      if (model.timeExpired && model.phase == MatchPhase.flying) {
-        return 'BUZZER SHOT — THIS ONE STILL COUNTS.';
-      }
-      if (stage.showdown != null) return model.showdownStatus;
-      if (stage.objective == StageObjective.corners) {
-        return 'THE GLOWING CORNERS ADVANCE THIS STAGE.';
-      }
-      return model.onFire ? 'FIRE SHOT · GOALS SCORE 2×' : stage.skill;
-    }
-    if (model.phase == MatchPhase.flying) {
-      return model.lastChance ? 'LAST CHANCE…' : 'SHOT AWAY…';
-    }
-    if (model.showTapCue) return 'TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT';
-    if (model.lastChance) return 'LAST CHANCE. MAKE IT COUNT.';
-    return model.onFire ? 'ON FIRE. GO FOR THE CORNER.'
-        : 'TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT';
+    if (!storageAvailable) return 'Progress saving unavailable';
+    if (model.phase != MatchPhase.aiming || model.isPreparingShot) return '';
+    return model.lastFailure?.shortAdvice ?? '';
   }
 
   Widget _footer() {
@@ -805,92 +919,40 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
               style: TextStyle(fontSize: 10, color: Colors.white60, letterSpacing: 1)));
     }
     final stage = model.stage;
-    final fireLabel = stage == null
-        ? ''
-        : model.phase == MatchPhase.flying && model.shotIsFire
-            ? 'FIRE SHOT · GOALS SCORE 2×'
-            : model.objectiveMet
-                ? 'STAGE COMPLETE'
-                : model.timeExpired
-                    ? 'TIME IS UP'
-                    : model.phase == MatchPhase.finished
-                        ? 'FRESH FIRE CHARGE ON RETRY'
-                        : model.fireReady
-                            ? 'FIRE SHOT READY · NEXT SHOT 2×'
-                            : '${model.fireCharge}/${stage.fireChargeGoals} '
-                              '${stage.fireChargeUnit.toUpperCase()}${stage.fireChargeGoals == 1 ? '' : 'S'} TO FIRE';
-    final objective = stage == null
-        ? (model.onFire ? 'ON FIRE · 2× POINTS' : '${model.streak}/5 STREAK TO 2×')
-        : '${model.objectiveProgress}/${stage.target} ${stage.unit.toUpperCase()}';
+    if (!model.isPlaying || game.matchPaused) {
+      return storageAvailable ? const SizedBox(height: 8)
+          : const Padding(padding: EdgeInsets.all(8),
+              child: Text('Progress saving unavailable',
+                  style: TextStyle(color: Colors.white60, fontSize: 11)));
+    }
     final hint = _playHint();
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 10, 22, 18),
-      child: Column(children: [
-        Row(children: [
-          Text(stage == null ? 'LEVEL ${model.level}' : 'STAGE ${model.level}/${challengeStages.length}',
-              style: const TextStyle(fontSize: 10, letterSpacing: 1.4, color: Colors.white54)),
-          const SizedBox(width: 12),
-          Expanded(child: Text(objective,
-              textAlign: TextAlign.right,
-              style: TextStyle(fontSize: 10, letterSpacing: 1,
-                  color: stage != null || model.onFire ? lime : Colors.white54))),
-        ]),
-        const SizedBox(height: 10),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(3),
-          child: LinearProgressIndicator(
-            value: stage == null
-                ? (model.streak / 5).clamp(0.0, 1.0)
-                : (model.objectiveProgress / stage.target).clamp(0.0, 1.0),
-            minHeight: 4,
-            backgroundColor: Colors.white10,
-            color: lime,
-            semanticsLabel: stage == null ? 'Streak progress' : stage.objectiveLabel,
-            semanticsValue: objective,
-          ),
-        ),
-        // Reserve this row throughout the stage so starting/ending an attempt
-        // does not resize the pitch just to add or remove the charge meter.
-        if (stage != null) ...[
-          const SizedBox(height: 10),
-          Row(children: [
-            const Icon(Icons.local_fire_department_rounded,
-                color: Color(0xffffc857), size: 18),
+    return Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (stage != null) StageObjectiveView(model: model),
+        const SizedBox(height: 8),
+        Semantics(label: stage == null
+            ? '${model.streak} consecutive goals'
+            : model.fireReady ? 'Fire shot ready. Next goal scores double.'
+                : '${model.fireCharge} of ${stage.fireChargeGoals} to Fire',
+          child: ExcludeSemantics(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.local_fire_department_rounded, color: Color(0xffffc857), size: 19),
             const SizedBox(width: 6),
-            Expanded(child: Text(fireLabel,
-                style: const TextStyle(fontSize: 10, color: Color(0xffffc857)))),
-            const SizedBox(width: 8),
-            for (var i = 0; i < stage.fireChargeGoals; i++)
-              Container(
-                width: 18, height: 6,
-                margin: const EdgeInsets.only(left: 4),
-                decoration: BoxDecoration(
-                  color: i < model.fireCharge
-                      ? const Color(0xffffc857) : Colors.white12,
-                  borderRadius: BorderRadius.circular(3),
-                ),
-              ),
-          ]),
-        ],
-        const SizedBox(height: 12),
-        if (model.isGuidedFirstMatch)
-          ConstrainedBox(
-            // Keep normal-sized guide copy from resizing the pitch between
-            // shots; allow larger accessibility text to grow without clipping.
-            constraints: const BoxConstraints(minHeight: 72),
-            child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Text(model.phase == MatchPhase.aiming
-                  ? model.firstTouchLesson.title : 'GUIDED FIRST MATCH',
-                  style: const TextStyle(fontSize: 10, color: lime,
-                      fontWeight: FontWeight.w800, letterSpacing: 1)),
-              const SizedBox(height: 4),
-              Text(hint, textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
-            ])),
-          )
-        else
-          Text(hint, textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 10, letterSpacing: 1.1, color: Colors.white60)),
+            Text(model.onFire ? 'FIRE · ×2' : stage == null ? '${model.streak}/5' : 'FIRE',
+                style: const TextStyle(color: Color(0xffffc857), fontSize: 11)),
+            if (stage != null) ...[
+              const SizedBox(width: 8),
+              for (var i = 0; i < stage.fireChargeGoals; i++)
+                Container(width: 16, height: 6, margin: const EdgeInsets.only(left: 4),
+                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(3),
+                        color: i < model.fireCharge ? const Color(0xffffc857) : Colors.white12)),
+            ],
+          ])),
+        ),
+        // Reserve one short correction line so taking a shot cannot resize the pitch.
+        SizedBox(height: MediaQuery.textScalerOf(context).scale(28),
+            child: Center(child: Text(hint, maxLines: 2, overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 12, color: Colors.white70)))),
       ]),
     );
   }

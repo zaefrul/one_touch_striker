@@ -89,6 +89,7 @@ class MatchModel {
   bool get isPreparingShot => _preparingShot;
   double get preparedSpin => _preparedSpin;
   double get heldSeconds => _heldSeconds;
+  double get timingPhase => KnuckleShot.phaseAt(_heldSeconds);
   bool get canTimeKnuckle => _preparingShot && !_movedShot;
   bool get knuckleReady => canTimeKnuckle &&
       KnuckleShot.timingAt(_heldSeconds) == StrikeTiming.clean;
@@ -494,7 +495,7 @@ class MatchModel {
     }
     final motionDt = dt * motionScale;
     if (_preparingShot && phase == MatchPhase.aiming) {
-      _heldSeconds = math.min(KnuckleShot.ringDuration, _heldSeconds + dt);
+      _heldSeconds += dt;
     }
     clock += motionDt;
     // Integrate phase rather than multiplying the entire elapsed clock by a

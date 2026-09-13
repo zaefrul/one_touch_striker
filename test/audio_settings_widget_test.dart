@@ -23,7 +23,7 @@ void main() {
     await prefs.setBool('sound', false);
     await prefs.setBool('audio_music', false);
     var audio = StrikerAudio.silent();
-    await tester.pumpWidget(StrikerApp(audio: audio));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: audio));
     await tester.pump(const Duration(milliseconds: 50));
     expect(audio.enabled, isFalse);
     expect(audio.mix.music, isFalse);
@@ -46,7 +46,7 @@ void main() {
     await tapText(tester, 'DONE');
     await tester.pumpWidget(const SizedBox.shrink());
     audio = StrikerAudio.silent();
-    await tester.pumpWidget(StrikerApp(audio: audio));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: audio));
     await tester.pump(const Duration(milliseconds: 50));
     expect(audio.enabled, isTrue);
     expect(audio.mix.music, isFalse);
@@ -59,7 +59,7 @@ void main() {
 
   testWidgets('menus return after backgrounding and matches stay paused until resume', (tester) async {
     final audio = StrikerAudio.silent();
-    await tester.pumpWidget(StrikerApp(audio: audio));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: audio));
     await tester.pump(const Duration(milliseconds: 50));
     expect(audio.scene.menu, greaterThan(0));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);

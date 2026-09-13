@@ -35,10 +35,11 @@ class LateWallMatch extends MatchModel {
 }
 
 void main() {
-  test('release timing selects a shot; waiting never fires or repeats the window', () {
+  test('release timing selects a shot; waiting repeats the window but never fires', () {
     for (final entry in <double, StrikeTiming>{
       .1: StrikeTiming.tap, .4: StrikeTiming.early,
-      .64: StrikeTiming.clean, .9: StrikeTiming.late, 2: StrikeTiming.late,
+      .64: StrikeTiming.clean, .9: StrikeTiming.late,
+      1.64: StrikeTiming.clean, 2.1: StrikeTiming.early, 6.64: StrikeTiming.clean,
     }.entries) {
       final match = MatchModel()..start()..beginShot();
       advance(match, entry.key);

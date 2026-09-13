@@ -13,10 +13,13 @@ import 'package:shared_preferences_platform_interface/shared_preferences_async_p
 // Pointer and app integration sources prepared for the owner's local testing.
 // No widget tests or app runs were executed for publication.
 Future<StrikerGame> launchMatch(WidgetTester tester) async {
-  await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+  await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
   await tester.pump(const Duration(milliseconds: 50));
   await tester.ensureVisible(find.text('PLAY FIRST MATCH  →'));
   await tester.tap(find.text('PLAY FIRST MATCH  →'));
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.ensureVisible(find.text('START STAGE  →'));
+  await tester.tap(find.text('START STAGE  →'));
   await tester.pump(const Duration(milliseconds: 50));
   return tester.widget<GameWidget<StrikerGame>>(
       find.byType(GameWidget<StrikerGame>)).game!;

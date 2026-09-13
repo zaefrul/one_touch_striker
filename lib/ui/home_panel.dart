@@ -34,11 +34,8 @@ class HomePanel extends StatelessWidget {
           style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900,
               height: 1.02, letterSpacing: -1.2)),
       const SizedBox(height: 12),
-      Text(firstMatch
-          ? 'Touch to aim. Drag to bend.\nRelease to beat the keeper.'
-          : 'Touch to aim. Drag to bend. Release to shoot.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white70, height: 1.4, fontSize: 14)),
+      const Text('Find the gap. Make it count.', textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.white70, fontSize: 14)),
       const SizedBox(height: 16),
       SizedBox(width: double.infinity,
           child: FilledButton(
@@ -51,7 +48,7 @@ class HomePanel extends StatelessWidget {
       const SizedBox(height: 8),
       Text(!loaded ? 'Getting your saved progress'
           : progress.completed ? '${progress.totalStars}/${challengeStages.length * 3} stars · Keep the rivalry going'
-              : firstMatch ? 'Guided Stage 1 · Score 3 goals · Three chances'
+              : firstMatch ? 'Stage 1 · Score 3 goals'
                   : '${stage.name} · ${stage.objectiveLabel}',
           textAlign: TextAlign.center,
           style: const TextStyle(color: Colors.white60, fontSize: 12)),
@@ -77,7 +74,7 @@ class HomePanel extends StatelessWidget {
           style: TextStyle(fontSize: 10, color: Colors.white54, letterSpacing: 1)),
       const SizedBox(height: 8),
       SizedBox(width: double.infinity,
-          child: OutlinedButton(onPressed: onClassic,
+          child: OutlinedButton(onPressed: loaded ? onClassic : null,
               child: const Padding(padding: EdgeInsets.symmetric(vertical: 12),
                   child: Text('LET’S PLAY  →',
                       style: TextStyle(fontWeight: FontWeight.w900))))),

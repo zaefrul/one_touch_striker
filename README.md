@@ -26,14 +26,15 @@ final now requires a Fire corner finish and allows 34 active seconds. See
 [Rival Cup rules, save continuity and local checks](RIVAL_CUP.md). These changes
 are source-reviewed only; no builds, tests or workflows were run.
 
-**First-minute hook** makes guided Stage 1 the first Home action for players
-without a Stage 1 clear. Returning players get Continue for their next uncleared
-stage. Live instructions follow real goals and Fire charge; simulation-derived
-miss advice persists into the next aim, and a neutral ring marks the locked
-target. Retry/Next appears before detailed results, with new rewards close to
-the star award. See [first-session flow and local checks](FIRST_MINUTE.md).
-The guide uses normal match rules and the existing star save. Its effect on
-understanding, replay appeal and frame performance has not been measured.
+**Animated onboarding and clearer play** automatically offer a short aim/release
+lesson on a fresh launch. Curves/banana and knuckle are taught before their first
+relevant stage or practice drill; Fire is explained when first ready. Each
+lesson uses the real shot gesture in a separate free arena. Completed or skipped
+lessons have their own saved progress. **Skip tutorials** dismisses automatic
+lessons; **Practice Arena → Replay tutorials** reopens individual lessons or all.
+Stage briefings lead with the win condition and keep longer help under Match tips.
+The gameplay HUD shows progress and every showdown condition, plus one brief
+correction after a miss. See [onboarding controls and local checks](ONBOARDING.md).
 
 **Player-controlled curves** capture the arrow on touch, use sideways drag for
 adjustable spin, and launch on release. Quick taps remain straight; stronger
@@ -42,8 +43,8 @@ calculation. Holding does not freeze opponents or the clock, and cancellation
 discards the pending shot. See [controls, tuning and local checks](CURVE_SHOTS.md).
 It was source-reviewed only; no analyzer, tests, builds, app runs or workflows ran.
 
-**Timed knuckles and Practice Arena** add a blue release window for a stationary
-hold, a small physical low-spin wobble, and feedback separating technique from
+**Timed knuckles and Practice Arena** use a blue release window that repeats
+on every revolution while holding still, a small physical low-spin wobble, and feedback separating technique from
 outcome. Three five-ball drills teach corners, bending around a defender and
 knuckle timing, with saved bests and immediate retry. See
 [controls, drill rules and local handoff](KNUCKLE_PRACTICE.md). This is a source
@@ -104,7 +105,7 @@ If the owner later chooses to use it after integration, the manual workflow reso
 
 - Touch the pitch while aiming to lock the initial arrow direction; release to shoot.
 - Drag sideways before releasing to add curve; drag back to the touch origin to straighten.
-- Hold still and release in the blue timing zone for a knuckle. Early/late releases stay straight; a deliberate drag opts that hold out of timing.
+- Hold still and release in the blue timing zone for a knuckle. The timing window repeats while holding; releasing outside it stays straight; a deliberate drag opts that hold out of timing.
 - The target dot previews the curved endpoint. Excessive bend can go wide; no shot is auto-corrected.
 - The goalkeeper and defenders keep moving while holding and during ball flight.
 - Goal: 1 point. Either highlighted goal corner: 3 points.

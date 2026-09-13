@@ -8,4 +8,10 @@ enum ShotFailure {
 
   const ShotFailure(this.advice);
   final String advice;
+  String get shortAdvice => switch (this) {
+    wide => 'Aim inside the posts',
+    post => 'Leave room beside the post',
+    keeper => 'Find space away from the keeper',
+    defender => 'Wait for a gap or bend around',
+  };
 }

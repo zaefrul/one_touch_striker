@@ -6,6 +6,7 @@ import '../game/showdown.dart';
 import '../game/star_rewards.dart';
 import 'run_summary.dart';
 import 'star_rewards_panel.dart';
+import 'stage_objective.dart';
 
 /// These panels sit inside the game's scrollable overlay, including on small
 /// phones and with larger accessibility text sizes.
@@ -148,6 +149,8 @@ class StagePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final stage = model.stage!;
     final intro = model.phase == MatchPhase.stageIntro;
+    if (intro) return _StageBriefing(model: model, rivals: rivals,
+        recordsAvailable: recordsAvailable, onStart: onStart, onStages: onStages);
     final cleared = model.phase == MatchPhase.stageCleared;
     final complete = cleared && model.isFinalStage;
     final accent = Theme.of(context).colorScheme.primary;
@@ -315,6 +318,65 @@ class StagePanel extends StatelessWidget {
   }
 }
 
+class _StageBriefing extends StatelessWidget {
+  const _StageBriefing({required this.model, required this.rivals,
+      required this.recordsAvailable, required this.onStart, required this.onStages});
+  final MatchModel model;
+  final RivalLedger rivals;
+  final bool recordsAvailable;
+  final VoidCallback onStart, onStages;
+
+  @override
+  Widget build(BuildContext context) {
+    final stage = model.stage!;
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Text('STAGE ${model.level} · ${stage.name}', textAlign: TextAlign.center,
+          style: const TextStyle(color: Colors.white60, fontSize: 12, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 20),
+      StageObjectiveView(model: model, intro: true),
+      const SizedBox(height: 18),
+      Text('VS ${stage.keeper.title} · ${stage.keeperSkill.title}',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Color(stage.keeper.kitColor), fontWeight: FontWeight.w700)),
+      const SizedBox(height: 20),
+      SizedBox(width: double.infinity, child: FilledButton(onPressed: onStart,
+          child: const Padding(padding: EdgeInsets.symmetric(vertical: 16),
+              child: Text('START STAGE  →', style: TextStyle(fontWeight: FontWeight.w900))))),
+      const SizedBox(height: 12),
+      ExpansionTile(title: const Text('Match tips', style: TextStyle(fontSize: 13)),
+        childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12), children: [
+          Text(recordsAvailable ? '${stage.keeper.title} · ${rivals.against(stage.keeper).scoreline}'
+              : 'Rival record unavailable', textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          const SizedBox(height: 10),
+          Text(stage.tip, textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+          const SizedBox(height: 10),
+          Text(stage.fireRule, textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xffffc857), fontSize: 12, height: 1.4)),
+          const SizedBox(height: 10),
+          Text(stage.keeperSkill.hint, textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+          if (stage.showdown != null) ...[
+            const SizedBox(height: 10),
+            Text(stage.showdown!.rule, textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+          ],
+          if (stage.timeLimit != null) ...[
+            const SizedBox(height: 10),
+            const Text('The clock runs while aiming and shooting. Release before zero.',
+                textAlign: TextAlign.center, style: TextStyle(color: Colors.white54, fontSize: 12)),
+          ],
+          const SizedBox(height: 10),
+          const Text('Stars: 0 misses = 3 · 1 miss = 2 · 2 misses = 1',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.white54, fontSize: 11)),
+        ],
+      ),
+      TextButton(onPressed: onStages, child: const Text('STAGE SELECT')),
+    ]);
+  }
+}
+
 class StageStars extends StatelessWidget {
   const StageStars(this.stars, {super.key, this.size = 19});
   final int stars;
@@ -371,6 +433,9 @@ class _StageCard extends StatelessWidget {
                   const SizedBox(height: 3),
                   Text('${stage.objectiveLabel}${stage.timeLimit == null ? '' : ' · ${stage.timeLimit}s'}',
                       style: const TextStyle(fontSize: 12, color: Colors.white60)),
+                  if (stage.extraObjectiveLabel != null)
+                    Text(stage.extraObjectiveLabel!,
+                        style: const TextStyle(fontSize: 11, color: Color(0xffffc857))),
                   const SizedBox(height: 3),
                   Text('vs ${stage.keeper.title} · ${stage.keeperSkill.title}',
                       style: TextStyle(fontSize: 11,

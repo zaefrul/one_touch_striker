@@ -32,7 +32,7 @@ void main() {
   testWidgets('results celebrate a beaten record but not a tied replay', (tester) async {
     final prefs = SharedPreferencesAsync();
     await prefs.setInt('best_score', 2);
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapAction(tester, 'LET’S PLAY  →');
     final game = currentGame(tester);
@@ -57,7 +57,7 @@ void main() {
   testWidgets('a lower-scoring result keeps the saved record and shows its stats', (tester) async {
     final prefs = SharedPreferencesAsync();
     await prefs.setInt('best_score', 20);
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tapAction(tester, 'LET’S PLAY  →');
     final game = currentGame(tester);

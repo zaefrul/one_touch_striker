@@ -23,8 +23,8 @@ abstract final class ShotCurve {
     return startX + (targetX - startX) * p - maxBend * spin * p * (1 - p);
   }
 
-  static const releaseLabels = ['STRAIGHT · RELEASE', 'CURVE LEFT · RELEASE',
-      'CURVE RIGHT · RELEASE', 'BANANA LEFT · RELEASE', 'BANANA RIGHT · RELEASE'];
+  static const releaseLabels = ['RELEASE', 'CURVE LEFT',
+      'CURVE RIGHT', 'BANANA LEFT', 'BANANA RIGHT'];
 
   static String releaseLabel(double spin) => spin == 0 ? releaseLabels[0]
       : spin.abs() < .75 ? releaseLabels[spin < 0 ? 1 : 2]

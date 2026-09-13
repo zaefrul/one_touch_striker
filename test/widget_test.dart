@@ -11,7 +11,7 @@ void main() {
   });
 
   testWidgets('home screen presents the play action', (tester) async {
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('ONE TAP.\nALL GLORY.'), findsOneWidget);
     expect(find.text('LET’S PLAY  →'), findsOneWidget);
@@ -20,15 +20,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('ONE TAP.\nALL GLORY.'), findsNothing);
     expect(find.byTooltip('Pause'), findsOneWidget);
-    expect(find.text('TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT'), findsOneWidget);
+    expect(find.text('TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT'), findsNothing);
     await tester.tap(find.bySemanticsLabel(RegExp('Football pitch')));
     await tester.pump();
     expect(find.text('TOUCH TO AIM · DRAG TO BEND · RELEASE TO SHOOT'), findsNothing);
-    expect(find.text('SHOT AWAY…'), findsOneWidget);
+    expect(find.text('SHOT AWAY…'), findsNothing);
   });
 
   testWidgets('pause overlay can end the run', (tester) async {
-    await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+    await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
     await tester.pump(const Duration(milliseconds: 50));
     await tester.ensureVisible(find.text('LET’S PLAY  →'));
     await tester.tap(find.text('LET’S PLAY  →'));

@@ -16,10 +16,12 @@ frame performance still require local playtesting.
 | Drag out of the centre and back | Removes sidespin, but cannot activate knuckle timing during that hold |
 | Deliberate vertical movement | Opts out of knuckle timing; does not add height, power or a chip |
 
-Each hold gets one timing window. Waiting longer never fires automatically,
-loops the window or charges more power. Opponents and active stage clocks keep
-moving. The marker stops at the end of the ring and the label says the shot is
-late. Small finger jitter within the existing dead zone is allowed.
+Updated by [animated onboarding](ONBOARDING.md): the marker and blue timing window
+repeat every revolution for the duration of a hold. Waiting never fires or adds
+power. Each revolution has the same valid zone. Opponents and active stage clocks
+keep moving. A deliberate drag still disables knuckle timing until a new touch;
+the rotating marker stays visible while the blue zone is hidden for curve mode.
+Small finger jitter within the existing dead zone is allowed.
 
 The first pointer owns the shot. Leaving the fitted pitch, cancellation,
 resize, pause/background, timeout or navigation discards the preparation.
@@ -45,7 +47,7 @@ Timing still appears as a goal, but earns no drill point. A clean knuckle save
 counts toward clean execution, uses one ball and earns no point. Each result
 separates technique from outcome, for example **Clean knuckle · Saved** or
 **Released early · Goal**, with all five attempts listed on the result screen.
-Early/late guidance remains visible during the next aim.
+Detailed timing explanations remain in the practice attempt history.
 
 Completed attempts can improve the per-drill best. A tie does not celebrate a
 new best. Results offer the next best-score target, or another perfect 5/5.
@@ -81,7 +83,7 @@ Distances use the existing 400 × 640 logical pitch and fitted input scale.
 | --- | --- |
 | Quick tap | Less than 0.20 active seconds |
 | Clean blue zone | 0.55–0.73 active seconds into a stationary hold |
-| Timing ring | One second; stops at the end |
+| Timing ring | One second per revolution; repeats while held |
 | Centre dead zone | Up to 14 logical units on each axis |
 | Wobble begins | 45% of flight to the goal line |
 | Maximum wobble bound | 14 logical units; actual peak is smaller |

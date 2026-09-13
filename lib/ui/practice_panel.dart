@@ -2,16 +2,19 @@ import 'package:flutter/material.dart';
 import '../game/match_model.dart';
 import '../game/practice_drill.dart';
 import '../game/practice_progress.dart';
+import '../game/tutorial_progress.dart';
 
 const _blue = Color(0xff7edfff);
 
 class PracticeMenu extends StatelessWidget {
   const PracticeMenu({super.key, required this.progress, required this.recordsAvailable,
-      required this.onSelect, required this.onBack});
+      required this.onSelect, required this.onBack, this.onTutorial, this.onReplayTutorial});
   final PracticeProgress progress;
   final bool recordsAvailable;
   final ValueChanged<PracticeDrill> onSelect;
   final VoidCallback onBack;
+  final ValueChanged<TutorialLesson>? onTutorial;
+  final VoidCallback? onReplayTutorial;
 
   @override
   Widget build(BuildContext context) => Column(mainAxisSize: MainAxisSize.min, children: [
@@ -23,6 +26,18 @@ class PracticeMenu extends StatelessWidget {
     const SizedBox(height: 12),
     const Text('Every released ball is one attempt.\nLearn a technique and beat your best out of five.',
         textAlign: TextAlign.center, style: TextStyle(color: Colors.white70, height: 1.4)),
+    if (onTutorial != null)
+      ExpansionTile(title: const Text('Replay tutorials'),
+        leading: const Icon(Icons.touch_app_outlined, color: _blue),
+        children: [
+          if (onReplayTutorial != null)
+            ListTile(title: const Text('Play all lessons'),
+                trailing: const Icon(Icons.play_arrow_rounded), onTap: onReplayTutorial),
+          for (final lesson in TutorialLesson.values)
+            ListTile(title: Text(lesson.title), trailing: const Icon(Icons.play_arrow_rounded),
+                onTap: () => onTutorial!(lesson)),
+        ],
+      ),
     for (final drill in PracticeDrill.values)
       Container(width: double.infinity, margin: const EdgeInsets.only(top: 14),
         padding: const EdgeInsets.all(16),
@@ -129,13 +144,13 @@ class PracticeFooter extends StatelessWidget {
           semanticsLabel: 'Practice balls completed',
           semanticsValue: '${model.resolvedShots} of ${PracticeDrill.balls}'),
       const SizedBox(height: 8),
-      ConstrainedBox(constraints: const BoxConstraints(minHeight: 48), child: Center(
-        child: Text(model.phase == MatchPhase.result ? model.lastPracticeNote
-            : model.phase == MatchPhase.aiming && model.lastTechniqueAdvice.isNotEmpty
-                ? model.lastTechniqueAdvice : model.practice!.rule,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.white70, height: 1.4)),
-      )),
+      Text(model.practice!.shortRule, textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 13, color: _blue, fontWeight: FontWeight.w700)),
+      SizedBox(height: MediaQuery.textScalerOf(context).scale(28), child: Center(child: Text(
+          model.phase == MatchPhase.aiming && !model.isPreparingShot
+              ? model.lastFailure?.shortAdvice ?? '' : '',
+          maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 11, color: Colors.white70)))),
       if (!savingAvailable)
         const Text('PRACTICE BEST SAVING UNAVAILABLE',
             style: TextStyle(color: Colors.white54, fontSize: 10)),

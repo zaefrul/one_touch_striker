@@ -1,5 +1,9 @@
 # First-minute hook milestone
 
+Historical milestone. The [animated onboarding update](ONBOARDING.md) supersedes
+the text guide, direct Stage 1 entry and star-based tutorial completion described
+below. Stars, rewards and normal stage scoring continue to use the existing rules.
+
 Source update on `feat/stage-challenges`, based on
 `a13e4c22e5ae8b8757cd53c6d290a677fd9b4185`. The goal is to make the first match
 easier to enter and understand, and make each retry suggest a useful correction.

@@ -19,7 +19,7 @@ Future<void> tapText(WidgetTester tester, String text) async {
 }
 
 Future<void> launch(WidgetTester tester) async {
-  await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+  await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
   await tester.pump(const Duration(milliseconds: 50));
 }
 
@@ -68,7 +68,8 @@ void main() {
     await tester.pump();
     expect(find.text('12 stages.\nEarn your stars.'), findsOneWidget);
     await tapText(tester, 'WIN CORNER DUEL  →');
-    expect(find.text('Corner Artist'), findsOneWidget);
+    expect(find.text('STAGE 3 · Corner Artist'), findsOneWidget);
+    await tapText(tester, 'Match tips');
     expect(find.text('The Sentinel · You 0 · Keeper 0'), findsOneWidget);
   });
 
@@ -94,6 +95,7 @@ void main() {
     await launch(tester);
     await tapText(tester, 'PLAY CHALLENGES');
     await tapText(tester, 'PLAY STAGE 1  →');
+    await tapText(tester, 'Match tips');
     expect(find.text('The Sweeper · You 0 · Keeper 1'), findsOneWidget);
     // Leaving a briefing has never started an attempt and must add no loss.
     await tapText(tester, 'STAGE SELECT');

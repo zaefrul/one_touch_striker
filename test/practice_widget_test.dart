@@ -22,7 +22,7 @@ Future<void> tapText(WidgetTester tester, String label) async {
 }
 
 Future<void> launch(WidgetTester tester) async {
-  await tester.pumpWidget(StrikerApp(audio: StrikerAudio.silent()));
+  await tester.pumpWidget(StrikerApp(autoTutorials: false, audio: StrikerAudio.silent()));
   await tester.pump(const Duration(milliseconds: 50));
 }
 
