@@ -43,9 +43,9 @@ The moving ring on the goal shows the initial direction and target height.
 | Keep holding through several revolutions | Ring keeps rotating; every revolution has a fresh timing window |
 | Release early or late | Ordinary straight shot with timing feedback |
 | Next Ball / Play Again | Start immediately |
-| II / Escape | Pause or resume |
-| ? | Show controls |
-| SFX | Toggle sound; the choice is saved for this prototype |
+| Pause icon / Escape | Pause or resume |
+| Help icon | Show controls |
+| Speaker icon | Toggle sound; the choice is saved for this prototype |
 | R | Restart all five balls |
 | Space on a result | Next ball / new set |
 
@@ -72,9 +72,33 @@ already in flight freezes during pause and resumes; cancellation consumes no bal
 - Existing project kick/net/save/post/wide/cheer audio and quiet crowd ambience.
 - Saved sound preference in Godot's separate `user://arena_settings.cfg`.
 - Reused meshes/materials, an instanced crowd and physics interpolation.
+- A shared UI theme, matching vector icons, responsive cards and safe-area margins.
 
 The twelve-stage campaign, stars, rivals, purchases and Flutter save data are
 outside this prototype. It has no backend, telemetry, advertising or purchases.
+
+## UI layout
+
+The arena uses one compact objective card, five shot markers and a short bottom
+prompt. Check marks and crosses distinguish attempts without relying on colour.
+The cue disappears during ball flight. Per-shot results have one **Next ball**
+action; the final result has **Play again**. **Restart set** is in Pause.
+
+All screens share 48-unit touch targets, 52-unit primary actions, 16-unit card
+corners and a centred column capped at 440 logical units. Godot containers own
+the spacing. On Android/iOS, display safe areas are converted into viewport
+coordinates before margins are applied. Help and pause content can scroll while
+the action buttons stay outside the scroll area.
+
+The toolbar and objective are excluded from shot input. Modal menus block pitch
+input and disable the toolbar's keyboard focus. Resuming a shot in flight also
+dismisses the pause overlay. The rotating technique ring is still drawn around
+the projected ball; the UI update does not change its timing or the shot rules.
+
+See [the UI layout reference](docs/ui-layout.svg) and
+[the layout notes](docs/UI_LAYOUT.md). The SVG is an authored static design
+reference, **not a screenshot or evidence of an engine run**. Actual font metrics,
+mobile insets and live scene clearance still need the local checks in PLAYTEST.
 
 ## Why this engine
 
@@ -103,7 +127,10 @@ Sources checked while preparing the prototype:
 | `scripts/shot_math.gd` | Flight, curve/knuckle timing, swept capsule/frame contact |
 | `scripts/keeper.gd` | Committed keeper response and matching visible/contact shapes |
 | `scripts/arena_art.gd` | Arena meshes, camera, instanced crowd, preview geometry |
-| `scripts/hud.gd` | Objective, repeating timing ring, results and menus |
+| `scripts/hud.gd` | Container layout, safe areas, timing ring, results and menus |
+| `scripts/ui_theme.gd` | Shared palette, typography and button/panel styles |
+| `scripts/shot_track.gd`, `scripts/bend_meter.gd` | Compact progress and bend cues |
+| `ui/icons/` | Original matching SVG control and technique icons |
 | `shaders/ball.gdshader` | Procedural ball markings |
 
 Distances are world units interpreted as metres. Y is ball height; Z runs from
@@ -158,4 +185,3 @@ commit `3e60054eca2a5df22b273b73e8b8ea4d512a0269`:
 
 - `icon.png`: existing iOS app icon.
 - `audio/`: the existing kick, net, save, post, wide, cheer and stadium WAV files.
-

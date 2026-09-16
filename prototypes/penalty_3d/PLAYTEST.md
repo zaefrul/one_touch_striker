@@ -33,6 +33,41 @@ whether to expand this prototype or migrate the Flutter campaign.
 | Release outside the play area | Cancels instead of firing |
 | Press Next repeatedly | One new ready ball; no duplicate goal/attempt |
 
+## UI layout pass
+
+The source and static SVG were reviewed; the following runtime checks are still
+pending. Compare the UI at 320 x 640, 400 x 800, a tall phone aspect ratio and a
+tablet-sized viewport. Also try a short desktop window to exercise menu scrolling.
+
+- Header icons share a baseline and have at least 48 logical units of touch area.
+- The objective and goal count fit their card. Five markers remain on one row;
+  scored shots show checks, missed shots show crosses, and the next ball has an
+  outline. The caption counts down to **Set complete** after the fifth ball.
+- The objective, ball, timing ring and bottom cue do not overlap. Hold through
+  several revolutions; watch the blue zone and check the bend meter at both ends.
+- The first ball says **Drag to bend**; later ready balls use only **Touch to lock**.
+  Restart brings the first-ball cue back. Holding shows **Release to shoot**.
+- Each result shows one clear outcome, one technique line and **Next ball**.
+  The fifth result shows the final goal total and **Play again**, with appropriate
+  wording for zero goals, one goal, a win and a perfect five.
+  Pause, Help and Sound remain reachable from results; returning from Pause/Help
+  restores the same result without consuming a ball.
+- Pause has **Resume**, **Restart set**, **Controls** and the current sound setting.
+  Help has three compact technique rows. Text wraps inside the card, and content
+  scrolls when necessary without moving the action buttons off-screen.
+- On phones with notches or gesture bars, check top/bottom safe margins in both
+  orientations. On tablets, cards stay centred rather than spanning the pitch.
+- Clicking any toolbar button cannot launch a shot. A release over the header
+  cancels a held shot; menu touches cannot reach the pitch underneath.
+- Pause while the ball is flying, then resume. Both the card and shade disappear
+  immediately, the flight continues, and the usual result appears once.
+- Resume from ready, a held shot and a result. Resize/background while paused.
+  There must be no stale menu, double result or shot caused by releasing a button.
+- Use Tab/Enter/Space with a keyboard. Focus should be visible; an open Pause/Help
+  modal must not focus toolbar controls underneath. Check Escape and R still work.
+- Mute from Pause and from the toolbar. Both speaker icons and the **Sound on/off**
+  caption agree, and the choice survives restarting the prototype.
+
 ## Fairness and feel
 
 - Watch the glove, head, torso and legs at contact, especially full-stretch saves.
@@ -49,7 +84,7 @@ whether to expand this prototype or migrate the Flutter campaign.
 ## Sound and lifecycle
 
 - Check kick, net, save, post and wide effects, crowd cheer and ambience.
-- Toggle SFX off, restart the app, and confirm it stays muted.
+- Toggle the speaker off, restart the app, and confirm it stays muted.
 - Pause/background during audio and confirm it pauses without overlapping loops.
 - Restart during feedback and confirm old effects stop and the new set is ready.
 
