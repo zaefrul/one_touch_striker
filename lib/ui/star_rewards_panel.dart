@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/star_rewards.dart';
+import 'theme.dart';
+import 'widgets.dart';
 
 class NextRewardCard extends StatelessWidget {
   const NextRewardCard({super.key, required this.stars, required this.onOpen});
@@ -9,17 +11,28 @@ class NextRewardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final next = nextStarReward(stars);
-    return Card(
-      color: const Color(0xff173e35),
-      child: ListTile(
+    return Material(
+      color: StrikerColors.raised,
+      borderRadius: BorderRadius.circular(StrikerSpace.radius),
+      child: InkWell(
         onTap: onOpen,
-        leading: const Icon(Icons.card_giftcard, color: Color(0xffffc857)),
-        title: Text(next == null ? 'Collection complete!' : 'Next: ${next.title}',
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800)),
-        subtitle: Text(next == null ? 'All five star rewards unlocked.'
-            : '${next.stars - stars} more ${next.stars - stars == 1 ? 'star' : 'stars'} to unlock',
-            style: const TextStyle(fontSize: 12, color: Colors.white70)),
-        trailing: const Icon(Icons.chevron_right),
+        borderRadius: BorderRadius.circular(StrikerSpace.radius),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(StrikerSpace.radius),
+            border: Border.all(color: StrikerColors.goldLine),
+          ),
+          child: ListTile(
+            leading: const Icon(Icons.card_giftcard, color: StrikerColors.gold),
+            title: Text(next == null ? 'Collection complete!' : 'Next: ${next.title}',
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800,
+                    fontFamily: StrikerFonts.body, color: StrikerColors.text)),
+            subtitle: Text(next == null ? 'All five star rewards unlocked.'
+                : '${next.stars - stars} more ${next.stars - stars == 1 ? 'star' : 'stars'} to unlock',
+                style: StrikerText.caption),
+            trailing: const Icon(Icons.chevron_right, color: StrikerColors.muted),
+          ),
+        ),
       ),
     );
   }
@@ -38,20 +51,20 @@ class StarRewardsPanel extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      const Text('STAR REWARDS', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+      const Eyebrow('COLLECTION'),
+      const SizedBox(height: 8),
+      const Text('STAR REWARDS', textAlign: TextAlign.center, style: StrikerText.headline),
       const SizedBox(height: 12),
       Text('$stars stars earned', textAlign: TextAlign.center,
-          style: const TextStyle(color: Color(0xffffc857), fontWeight: FontWeight.bold)),
+          style: StrikerText.eyebrow.copyWith(fontSize: 13)),
       const SizedBox(height: 8),
       const Text('Earn stars to unlock new looks. Stars are never spent.\nEquip one look per category; every ball plays the same.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 12, color: Colors.white70, height: 1.5)),
+          textAlign: TextAlign.center, style: StrikerText.caption),
       const SizedBox(height: 18),
       for (final slot in RewardSlot.values) ...[
         Padding(padding: const EdgeInsets.symmetric(vertical: 10),
             child: Text(slot.name.toUpperCase(),
-                style: const TextStyle(fontSize: 11, letterSpacing: 2, color: Colors.white60))),
+                style: StrikerText.eyebrow.copyWith(color: StrikerColors.muted))),
         for (final reward in StarReward.values.where((reward) => reward.slot == slot))
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
@@ -76,27 +89,25 @@ class _RewardTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final unlocked = stars >= reward.stars;
-    final icon = switch (reward.slot) {
-      RewardSlot.ball => Icons.sports_soccer,
-      RewardSlot.net => Icons.grid_on,
-      RewardSlot.pitch => reward == StarReward.nightPitch ? Icons.nights_stay : Icons.wb_sunny,
+    final kind = switch (reward.slot) {
+      RewardSlot.ball => RewardSwatchKind.ball,
+      RewardSlot.net => RewardSwatchKind.net,
+      RewardSlot.pitch => RewardSwatchKind.pitch,
     };
-    return Container(
+    return Panel(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .05),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: equipped ? const Color(0xffd9ff6a) : Colors.white12)),
+      borderColor: equipped ? StrikerColors.gold : StrikerColors.outline,
       child: Row(children: [
-        CircleAvatar(backgroundColor: Color(reward.primary),
-            child: Icon(icon, color: Color(reward.secondary), size: 24)),
+        RewardSwatch(kind: kind, primary: Color(reward.primary), secondary: Color(reward.secondary)),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(reward.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
+          Text(reward.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13,
+              fontFamily: StrikerFonts.body, color: StrikerColors.text)),
           const SizedBox(height: 4),
           Text(reward.stars == 0 ? 'Available from the start'
               : unlocked ? 'Unlocked at ${reward.stars} stars'
                   : '${reward.stars - stars} more stars needed',
-              style: const TextStyle(fontSize: 11, color: Colors.white60)),
+              style: StrikerText.caption),
         ])),
         const SizedBox(width: 6),
         Tooltip(message: equipped ? '${reward.title} equipped' : 'Equip ${reward.title}',

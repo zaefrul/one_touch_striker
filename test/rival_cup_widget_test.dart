@@ -85,7 +85,6 @@ void main() {
     await tapText(tester, 'END STAGE');
     await tester.pump(const Duration(milliseconds: 50));
     expect(find.text('The Sweeper · You 0 · Keeper 1'), findsOneWidget);
-    await tester.tap(find.byTooltip('Turn sound off'));
     await tester.pump(const Duration(milliseconds: 50));
     final saved = RivalLedger();
     expect(saved.restore(await prefs.getString(RivalLedger.storageKey)), isTrue);

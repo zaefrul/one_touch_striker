@@ -24,6 +24,7 @@ class ChallengeStage {
     required this.keeperRange,
     required this.pitchColor,
     required this.stripeColor,
+    this.accent = 0xffffb340,
     this.defenders = 0,
     this.defenderSpeed = 1.05,
     this.pattern = DefencePattern.sweep,
@@ -53,6 +54,7 @@ class ChallengeStage {
   final int fireChargeGoals;
   final int pitchColor;
   final int stripeColor;
+  final int accent;
 
   String get unit => switch (objective) {
         StageObjective.goals => 'goals',
@@ -90,8 +92,9 @@ const challengeStages = [
     aimSpeed: 1.10,
     keeperSpeed: .75,
     keeperRange: 75,
-    pitchColor: 0xff126a50,
-    stripeColor: 0xff167456,
+    pitchColor: 0xff1f8a4c,
+    stripeColor: 0xff23985a,
+    accent: 0xffffb340,
   ),
   ChallengeStage(
     name: 'Moving Wall',
@@ -105,8 +108,9 @@ const challengeStages = [
     keeperRange: 90,
     defenders: 1,
     defenderSpeed: 1.10,
-    pitchColor: 0xff145d70,
-    stripeColor: 0xff196b7a,
+    pitchColor: 0xff1a7d48,
+    stripeColor: 0xff1e8a50,
+    accent: 0xff5fd4ff,
   ),
   ChallengeStage(
     name: 'Corner Artist',
@@ -122,8 +126,9 @@ const challengeStages = [
     keeper: KeeperStyle.sentinel,
     fireChargeGoals: 1,
     keeperSkill: KeeperSkill.club,
-    pitchColor: 0xff4d456e,
-    stripeColor: 0xff584f7b,
+    pitchColor: 0xff176d42,
+    stripeColor: 0xff1b7848,
+    accent: 0xffffb340,
   ),
   ChallengeStage(
     name: 'Beat the Clock',
@@ -138,8 +143,9 @@ const challengeStages = [
     keeper: KeeperStyle.sentinel,
     timeLimit: 25,
     keeperSkill: KeeperSkill.club,
-    pitchColor: 0xff73552d,
-    stripeColor: 0xff806136,
+    pitchColor: 0xff15633c,
+    stripeColor: 0xff186e42,
+    accent: 0xffff6b6b,
   ),
   ChallengeStage(
     name: 'Double Trouble',
@@ -156,8 +162,9 @@ const challengeStages = [
     defenders: 2,
     defenderSpeed: 1.15,
     pattern: DefencePattern.crossing,
-    pitchColor: 0xff70414e,
-    stripeColor: 0xff7b4a57,
+    pitchColor: 0xff125836,
+    stripeColor: 0xff15633c,
+    accent: 0xff5fd4ff,
   ),
   ChallengeStage(
     name: "Captain's Finish",
@@ -175,8 +182,9 @@ const challengeStages = [
     defenders: 2,
     defenderSpeed: 1.25,
     timeLimit: 30,
-    pitchColor: 0xff23496a,
-    stripeColor: 0xff2b5576,
+    pitchColor: 0xff0f4d30,
+    stripeColor: 0xff125836,
+    accent: 0xffffb340,
   ),
   ChallengeStage(
     name: 'Pressure Cooker',
@@ -193,8 +201,9 @@ const challengeStages = [
     defenderSpeed: 1.40,
     pattern: DefencePattern.crossing,
     timeLimit: 26,
-    pitchColor: 0xff70402e,
-    stripeColor: 0xff7c4b36,
+    pitchColor: 0xff0e4530,
+    stripeColor: 0xff114c36,
+    accent: 0xffff6b6b,
   ),
   ChallengeStage(
     name: 'Needle Threader',
@@ -210,8 +219,9 @@ const challengeStages = [
     keeperSkill: KeeperSkill.elite,
     defenders: 2,
     defenderSpeed: 1.40,
-    pitchColor: 0xff433a70,
-    stripeColor: 0xff4f467e,
+    pitchColor: 0xff0c3d32,
+    stripeColor: 0xff0f4538,
+    accent: 0xff5fd4ff,
   ),
   ChallengeStage(
     name: 'Triple Wall',
@@ -229,8 +239,9 @@ const challengeStages = [
     defenders: 3,
     defenderSpeed: 1.40,
     pattern: DefencePattern.staggered,
-    pitchColor: 0xff245c62,
-    stripeColor: 0xff2b6870,
+    pitchColor: 0xff0a3534,
+    stripeColor: 0xff0d3c3a,
+    accent: 0xffffb340,
   ),
   ChallengeStage(
     name: 'Sudden Rush',
@@ -247,8 +258,9 @@ const challengeStages = [
     defenderSpeed: 1.60,
     pattern: DefencePattern.crossing,
     timeLimit: 22,
-    pitchColor: 0xff754c22,
-    stripeColor: 0xff81592b,
+    pitchColor: 0xff082c36,
+    stripeColor: 0xff0b333e,
+    accent: 0xffff6b6b,
   ),
   ChallengeStage(
     name: 'Corner Siege',
@@ -266,8 +278,9 @@ const challengeStages = [
     defenderSpeed: 1.50,
     pattern: DefencePattern.staggered,
     timeLimit: 32,
-    pitchColor: 0xff613653,
-    stripeColor: 0xff704061,
+    pitchColor: 0xff072438,
+    stripeColor: 0xff0a2b40,
+    accent: 0xff5fd4ff,
   ),
   ChallengeStage(
     name: "Champion's Gate",
@@ -286,8 +299,9 @@ const challengeStages = [
     defenderSpeed: 1.65,
     // Allow another charge cycle for the required Fire-corner finish.
     timeLimit: 34,
-    pitchColor: 0xff26335d,
-    stripeColor: 0xff303f6d,
+    pitchColor: 0xff061a2c,
+    stripeColor: 0xff082234,
+    accent: 0xffffb340,
   ),
 ];
 

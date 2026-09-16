@@ -6,13 +6,13 @@ enum RewardSlot { ball, net, pitch }
 /// never spent; the match model has no dependency on cosmetic selections.
 enum StarReward {
   classicBall('Classic Ball', RewardSlot.ball, 0, 0xfff8faed, 0xff233e37),
-  neonBall('Neon Ball', RewardSlot.ball, 3, 0xffd9ff6a, 0xff164d50),
+  neonBall('Neon Ball', RewardSlot.ball, 3, 0xffffb340, 0xff0a1226),
   retroBall('Retro Ball', RewardSlot.ball, 9, 0xffffd7a0, 0xff794c2c),
   championBall('Champion Ball', RewardSlot.ball, 36, 0xffffc857, 0xff533c75),
   standardNet('Classic Net', RewardSlot.net, 0, 0xff32635a, 0xffeef8df),
   goldNet('Golden Net', RewardSlot.net, 18, 0xffb78b42, 0xffffd777),
-  dayPitch('Stage Colours', RewardSlot.pitch, 0, 0xff126a50, 0xff167456),
-  nightPitch('Night Stadium', RewardSlot.pitch, 27, 0xff0a2338, 0xff103047);
+  dayPitch('Stage Colours', RewardSlot.pitch, 0, 0xff1f8a4c, 0xff23985a),
+  nightPitch('Night Stadium', RewardSlot.pitch, 27, 0xff0a1226, 0xff111d3a);
 
   const StarReward(this.title, this.slot, this.stars, this.primary, this.secondary);
   final String title;

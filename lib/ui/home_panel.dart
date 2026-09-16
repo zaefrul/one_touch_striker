@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../game/challenge_stage.dart';
 import 'star_rewards_panel.dart';
+import 'theme.dart';
+import 'widgets.dart';
 
 /// Put the next playable action before the collection and mode choices.
 class HomePanel extends StatelessWidget {
   const HomePanel({super.key, required this.progress, required this.loaded,
       required this.onQuickPlay, required this.onStages, required this.onClassic,
-      required this.onRewards, required this.onPractice, this.onAudio});
+      required this.onRewards, required this.onPractice, this.onAudio, this.best = 0});
 
   final ChallengeProgress progress;
   final bool loaded;
@@ -16,6 +18,7 @@ class HomePanel extends StatelessWidget {
   final VoidCallback onRewards;
   final VoidCallback onPractice;
   final VoidCallback? onAudio;
+  final int best;
 
   @override
   Widget build(BuildContext context) {
@@ -25,67 +28,55 @@ class HomePanel extends StatelessWidget {
         : progress.completed ? 'CHOOSE A REMATCH  →'
             : firstMatch ? 'PLAY FIRST MATCH  →'
                 : 'CONTINUE · STAGE ${progress.nextStageIndex + 1}  →';
+    final objective = !loaded ? 'Getting your saved progress'
+        : progress.completed ? '${progress.totalStars}/${challengeStages.length * 3} stars · Keep the rivalry going'
+            : firstMatch ? 'Stage 1 · Score 3 goals'
+                : '${stage.name} · ${stage.objectiveLabel}';
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      const Text('YOUR NEXT GREAT GOAL',
-          style: TextStyle(color: Color(0xffd9ff6a), fontSize: 10,
-              letterSpacing: 2, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 10),
-      const Text('ONE TAP.\nALL GLORY.', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900,
-              height: 1.02, letterSpacing: -1.2)),
+      Panel(child: Column(children: [
+        const Eyebrow('YOUR NEXT GREAT GOAL'),
+        const SizedBox(height: 10),
+        const Text('ONE TAP.\nALL GLORY.', textAlign: TextAlign.center,
+            style: StrikerText.headline),
+        const SizedBox(height: 12),
+        Text(objective, textAlign: TextAlign.center, style: StrikerText.caption),
+        const SizedBox(height: 16),
+        PrimaryButton(
+          buttonKey: const ValueKey('quick_play'),
+          onPressed: loaded ? onQuickPlay : null,
+          label: action,
+        ),
+      ])),
       const SizedBox(height: 12),
-      const Text('Find the gap. Make it count.', textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white70, fontSize: 14)),
-      const SizedBox(height: 16),
-      SizedBox(width: double.infinity,
-          child: FilledButton(
-            key: const ValueKey('quick_play'),
-            onPressed: loaded ? onQuickPlay : null,
-            child: Padding(padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Text(action, textAlign: TextAlign.center,
-                    style: const TextStyle(fontWeight: FontWeight.w900))),
-          )),
+      ModeTile(
+        title: 'PLAY CHALLENGES',
+        subtitle: '${progress.totalStars}/${challengeStages.length * 3} stars · Rival Cup',
+        progress: progress.totalStars / (challengeStages.length * 3),
+        onTap: loaded ? onStages : null,
+        glyph: const Icon(Icons.emoji_events_rounded, color: StrikerColors.gold),
+      ),
       const SizedBox(height: 8),
-      Text(!loaded ? 'Getting your saved progress'
-          : progress.completed ? '${progress.totalStars}/${challengeStages.length * 3} stars · Keep the rivalry going'
-              : firstMatch ? 'Stage 1 · Score 3 goals'
-                  : '${stage.name} · ${stage.objectiveLabel}',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white60, fontSize: 12)),
+      ModeTile(
+        title: 'PRACTICE ARENA',
+        subtitle: 'Five-ball drills · Timed knuckle shot',
+        onTap: loaded ? onPractice : null,
+        glyph: const BallGlyph(size: 26),
+      ),
       const SizedBox(height: 8),
-      SizedBox(width: double.infinity, child: OutlinedButton.icon(
-          onPressed: loaded ? onPractice : null,
-          icon: const Icon(Icons.sports_soccer, size: 18),
-          label: const Text('PRACTICE ARENA'))),
-      const Text('Five-ball drills · Learn the timed knuckle shot',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.white54, fontSize: 11)),
+      ModeTile(
+        title: 'LET’S PLAY  →',
+        subtitle: best > 0 ? 'Classic · Best $best' : 'Classic · Chase your best score',
+        onTap: loaded ? onClassic : null,
+        glyph: const Icon(Icons.bolt_rounded, color: StrikerColors.gold),
+      ),
       const SizedBox(height: 8),
-      Wrap(alignment: WrapAlignment.center, spacing: 8, children: [
-        TextButton(onPressed: loaded ? onStages : null,
-            child: const Text('PLAY CHALLENGES')),
-        TextButton(onPressed: loaded ? onRewards : null,
-            child: const Text('STAR REWARDS')),
-      ]),
       NextRewardCard(stars: progress.totalStars, onOpen: onRewards),
-      const SizedBox(height: 16),
-      const Text('CLASSIC · CHASE YOUR BEST SCORE',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 10, color: Colors.white54, letterSpacing: 1)),
-      const SizedBox(height: 8),
-      SizedBox(width: double.infinity,
-          child: OutlinedButton(onPressed: loaded ? onClassic : null,
-              child: const Padding(padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text('LET’S PLAY  →',
-                      style: TextStyle(fontWeight: FontWeight.w900))))),
-      const SizedBox(height: 8),
-      const Text('Goal +1 · Corner +3\nNo timer. Three misses end your Classic run.',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 11, color: Colors.white54, height: 1.4)),
-      const SizedBox(height: 8),
-      TextButton.icon(onPressed: onAudio,
-          icon: const Icon(Icons.tune_rounded, size: 18),
-          label: const Text('AUDIO MIX')),
+      TextButton(onPressed: loaded ? onRewards : null, child: const Text('STAR REWARDS')),
+      if (onAudio != null) QuietButton(
+        label: 'AUDIO MIX',
+        icon: Icons.tune_rounded,
+        onPressed: onAudio,
+      ),
     ]);
   }
 }

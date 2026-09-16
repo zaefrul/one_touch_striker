@@ -6,7 +6,7 @@ enum KeeperStyle {
   sweeper(
     'The Sweeper',
     'Sweeps from side to side. Aim into the space he leaves.',
-    0xffffc857,
+    0xffffd166,
   ),
   sentinel(
     'The Sentinel',

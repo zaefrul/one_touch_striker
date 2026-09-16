@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../game/match_model.dart';
 import '../game/showdown.dart';
+import 'theme.dart';
 
 /// The briefing and HUD use the same rules, including compound showdowns.
 class StageObjectiveView extends StatelessWidget {
@@ -11,15 +12,14 @@ class StageObjectiveView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final stage = model.stage!;
-    final accent = Theme.of(context).colorScheme.primary;
     final progress = model.objectiveProgress.clamp(0, stage.target);
     return Column(mainAxisSize: MainAxisSize.min, children: [
       Text(intro ? stage.objectiveLabel
           : stage.showdown == Showdown.cornerDuel ? 'Score in both corners'
               : '$progress/${stage.target} ${stage.unit}',
           textAlign: TextAlign.center,
-          style: TextStyle(fontSize: intro ? 28 : 17, fontWeight: FontWeight.w900,
-              height: 1.1, color: accent)),
+          style: (intro ? StrikerText.headline : StrikerText.title).copyWith(
+              fontSize: intro ? 28 : 17, color: StrikerColors.gold)),
       if (stage.showdown == Showdown.cornerDuel) ...[
         const SizedBox(height: 8),
         Wrap(alignment: WrapAlignment.center, spacing: 18, runSpacing: 4, children: [
@@ -46,10 +46,9 @@ class StageObjectiveView extends StatelessWidget {
     label: '$label. ${complete ? 'Complete' : 'Required'}',
     child: ExcludeSemantics(child: Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(complete ? Icons.check_circle : pending, size: 17,
-          color: complete ? const Color(0xffd9ff6a) : const Color(0xffffc857)),
+          color: complete ? StrikerColors.gold : StrikerColors.cyan),
       const SizedBox(width: 6),
-      Flexible(child: Text(label, textAlign: TextAlign.center,
-          style: const TextStyle(fontSize: 12, color: Colors.white70))),
+      Flexible(child: Text(label, textAlign: TextAlign.center, style: StrikerText.caption)),
     ])),
   );
 }
@@ -60,8 +59,8 @@ class _RuleBadge extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) => Row(mainAxisSize: MainAxisSize.min, children: [
-    Icon(icon, size: 16, color: Colors.white60),
+    Icon(icon, size: 16, color: StrikerColors.muted),
     const SizedBox(width: 5),
-    Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+    Text(label, style: StrikerText.caption),
   ]);
 }

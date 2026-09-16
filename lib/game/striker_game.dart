@@ -13,6 +13,7 @@ import 'shot_trail.dart';
 import 'shot_curve.dart';
 import 'knuckle_shot.dart';
 import 'practice_drill.dart';
+import '../ui/theme.dart';
 
 class StrikerGame extends FlameGame {
   StrikerGame(this.model,
@@ -38,6 +39,8 @@ class StrikerGame extends FlameGame {
   final ShotTrail _trail = ShotTrail();
   double _kickTime = 0;
   Picture? _fieldPicture;
+  Picture? _backdropPicture;
+  Size? _backdropSize;
   int? _fieldStageIndex;
   PracticeDrill? _fieldPractice;
   final List<Picture> _playerPictures = [];
@@ -48,74 +51,80 @@ class StrikerGame extends FlameGame {
   final Map<(String, double, Color, double), TextPainter> _labelCache = {};
   final List<Paint> _trailPaints = List.generate(
     14,
-    (i) => Paint()..color = Color.fromRGBO(233, 255, 177, .06 + i * .05),
+    (i) => Paint()..color = Color.fromRGBO(244, 241, 232, .06 + i * .05),
   );
   final List<Paint> _fireTrailPaints = List.generate(
     14,
-    (i) => Paint()..color = Color.fromRGBO(217, 255, 106, .08 + i * .055),
+    (i) => Paint()..color = Color.fromRGBO(255, 179, 64, .08 + i * .055),
   );
   final List<Paint> _confettiPaints = [
-    Paint()..color = const Color(0xffd9ff6a),
-    Paint()..color = const Color(0xffffc857),
-    Paint()..color = const Color(0xffefffe2),
+    Paint()..color = StrikerColors.gold,
+    Paint()..color = StrikerColors.cyan,
+    Paint()..color = StrikerColors.text,
   ];
   final Paint _postSparkPaint = Paint()..color = const Color(0xfffff4c2);
   final Paint _aimPaint = Paint()
-    ..color = const Color(0xffd9ff6a)
+    ..color = StrikerColors.gold
     ..style = PaintingStyle.stroke
     ..strokeWidth = 3
     ..strokeCap = StrokeCap.round;
-  final Paint _aimDotPaint = Paint()..color = const Color(0xffd9ff6a);
-  final Paint _wideDotPaint = Paint()..color = const Color(0xffff777a);
+  final Paint _aimGlowPaint = Paint()
+    ..color = const Color(0x55ffb340)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 7
+    ..strokeCap = StrokeCap.round;
+  final Paint _aimDotPaint = Paint()..color = StrikerColors.gold;
+  final Paint _wideDotPaint = Paint()..color = StrikerColors.coral;
   final Paint _spinTrackPaint = Paint()
-    ..color = const Color(0x66efffe2)
+    ..color = const Color(0x66f4f1e8)
     ..strokeWidth = 2
     ..strokeCap = StrokeCap.round;
   final Paint _spinFillPaint = Paint()
-    ..color = const Color(0xffd9ff6a)
+    ..color = StrikerColors.gold
     ..strokeWidth = 4
     ..strokeCap = StrokeCap.round;
   final Paint _timingTrackPaint = Paint()
-    ..color = const Color(0x667edfff)
+    ..color = StrikerColors.cyanLine
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2;
   final Paint _timingZonePaint = Paint()
-    ..color = const Color(0xff7edfff)
+    ..color = StrikerColors.cyan
     ..style = PaintingStyle.stroke
     ..strokeWidth = 5;
-  final Paint _timingMarkerPaint = Paint()..color = const Color(0xffefffe2);
+  final Paint _timingMarkerPaint = Paint()..color = StrikerColors.text;
   final Paint _practiceTargetPaint = Paint()
-    ..color = const Color(0xff7edfff)
+    ..color = StrikerColors.cyan
     ..style = PaintingStyle.stroke
     ..strokeWidth = 2;
-  final Paint _practiceTargetFill = Paint()..color = const Color(0x447edfff);
+  final Paint _practiceTargetFill = Paint()..color = StrikerColors.cyanSoft;
   final Paint _aimRingPaint = Paint()
-    ..color = const Color(0x55d9ff6a)
+    ..color = const Color(0x55ffb340)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
   final Paint _fireBorderPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeWidth = 4;
   final Paint _lastChancePaint = Paint()
-    ..color = const Color(0x55ff777a)
+    ..color = StrikerColors.coralLine
     ..style = PaintingStyle.stroke
     ..strokeWidth = 3;
   final Paint _ballShadowPaint = Paint()..color = const Color(0x55000000);
   final Paint _keeperShadowPaint = Paint()..color = const Color(0x44000000);
-  final Paint _keeperCuePaint = Paint()..color = const Color(0xee082f2c);
+  final Paint _keeperCuePaint = Paint()..color = const Color(0xee0a1226);
   final Paint _keeperHairPaint = Paint()
-    ..color = const Color(0xff24372d)
+    ..color = StrikerColors.hair
     ..strokeWidth = 3
     ..style = PaintingStyle.stroke;
   final List<Paint> _keeperPartPaints = [
-    for (final color in [0xffffc857, 0xff173a39, 0xfffff5df, 0xff132d30, 0xffd99c71])
+    for (final color in [0xffffd166, 0xff173a39, 0xfffff5df, 0xff132d30, 0xffd99c71])
       Paint()
         ..color = Color(color)
         ..strokeCap = StrokeCap.round,
   ];
-  final Paint _ballPaint = Paint()..color = const Color(0xfff8faed);
-  final Paint _fireBallPaint = Paint()..color = const Color(0x55ffc857);
-  final Paint _ballPatchPaint = Paint()..color = const Color(0xff233e37);
+  final Paint _ballPaint = Paint()..color = StrikerColors.ball;
+  final Paint _ballHighlightPaint = Paint()..color = const Color(0x66ffffff);
+  final Paint _fireBallPaint = Paint()..color = const Color(0x55ffb340);
+  final Paint _ballPatchPaint = Paint()..color = StrikerColors.ballPatch;
   final Paint _goalFlashPaint = Paint();
   final Path _aimPath = Path();
   final Path _ballPatch = _makeBallPatch();
@@ -123,9 +132,9 @@ class StrikerGame extends FlameGame {
   StarReward _ballSkin = StarReward.classicBall;
   StarReward _netSkin = StarReward.standardNet;
   StarReward _pitchSkin = StarReward.dayPitch;
-  final Paint _neonHaloPaint = Paint()..color = const Color(0x44d9ff6a);
+  final Paint _neonHaloPaint = Paint()..color = const Color(0x44ffb340);
   final Paint _lockedTargetPaint = Paint()
-    ..color = const Color(0xbbeef8df)
+    ..color = const Color(0xbbf4f1e8)
     ..style = PaintingStyle.stroke
     ..strokeWidth = 1.5;
   final RRect _pitchBorder = RRect.fromRectAndRadius(
@@ -139,21 +148,21 @@ class StrikerGame extends FlameGame {
   Future<void> onLoad() async {
     await super.onLoad();
     // Lay out the finite set of labels before the first playable frame.
-    _painterFor('1', 11, const Color(0xff123c33), 0);
+    _painterFor('1', 11, StrikerColors.onGold, 0);
     for (var i = 0; i < _cachedDefenderCount; i++) {
-      _painterFor('${i + 4}', 11, const Color(0xff123c33), 0);
+      _painterFor('${i + 4}', 11, StrikerColors.onGold, 0);
     }
-    _painterFor('TAP', 12, const Color(0xffd9ff6a), 2.5);
+    _painterFor('TAP', 12, StrikerColors.gold, 2.5);
     for (final cue in ShotCurve.releaseLabels) {
-      _painterFor(cue, 10, const Color(0xffd9ff6a), 1);
+      _painterFor(cue, 10, StrikerColors.gold, 1);
     }
     for (final cue in KnuckleShot.releaseLabels) {
-      _painterFor(cue, 10, const Color(0xff7edfff), 1);
+      _painterFor(cue, 10, StrikerColors.cyan, 1);
     }
-    _painterFor('TARGET', 9, const Color(0xff7edfff), 1);
-    _painterFor('ON FIRE', 13, const Color(0xffd9ff6a), 3);
-    _painterFor('FIRE SHOT', 13, const Color(0xffd9ff6a), 3);
-    _painterFor('LAST CHANCE', 12, const Color(0xffff777a), 2);
+    _painterFor('TARGET', 9, StrikerColors.cyan, 1);
+    _painterFor('ON FIRE', 13, StrikerColors.gold, 3);
+    _painterFor('FIRE SHOT', 13, StrikerColors.gold, 3);
+    _painterFor('LAST CHANCE', 12, StrikerColors.coral, 2);
     for (final cue in ['RUSH INCOMING', 'FEET SET', 'FULL STRETCH',
         'RUSH & SLIDE', 'COVERING LEFT', 'COVERING RIGHT',
         'TRY AGAIN!', 'NOT THIS TIME!', 'MY BOX!']) {
@@ -196,10 +205,44 @@ class StrikerGame extends FlameGame {
     _fieldPicture = recorder.endRecording();
   }
 
+  void _prepareBackdrop(Size canvasSize) {
+    if (_backdropPicture != null && _backdropSize == canvasSize) return;
+    _backdropPicture?.dispose();
+    _backdropSize = canvasSize;
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder, Offset.zero & canvasSize);
+    final w = canvasSize.width, h = canvasSize.height;
+    canvas.drawRect(Offset.zero & canvasSize, Paint()
+      ..shader = Gradient.linear(Offset.zero, Offset(0, h), const [
+        Color(0xff07101f), StrikerColors.ink, Color(0xff06182a),
+      ], const [0, .45, 1]));
+    final stand = Paint()..color = const Color(0x66111d3a);
+    canvas.drawRect(Rect.fromLTWH(0, h * .08, w * .12, h * .72), stand);
+    canvas.drawRect(Rect.fromLTWH(w * .88, h * .08, w * .12, h * .72), stand);
+    final row = Paint()..color = const Color(0x33182848);
+    for (var i = 0; i < 8; i++) {
+      canvas.drawRect(Rect.fromLTWH(0, h * .12 + i * h * .08, w * .12, h * .03), row);
+      canvas.drawRect(Rect.fromLTWH(w * .88, h * .12 + i * h * .08, w * .12, h * .03), row);
+    }
+    final cone = Paint()
+      ..shader = Gradient.radial(Offset(w * .18, h * .06), h * .55,
+          [const Color(0x337edfff), const Color(0x000a1226)]);
+    canvas.drawCircle(Offset(w * .18, h * .06), h * .55, cone);
+    canvas.drawCircle(Offset(w * .82, h * .06), h * .55, Paint()
+      ..shader = Gradient.radial(Offset(w * .82, h * .06), h * .55,
+          [const Color(0x337edfff), const Color(0x000a1226)]));
+    final lamp = Paint()..color = StrikerColors.flood;
+    canvas.drawCircle(Offset(w * .18, h * .05), 5, lamp);
+    canvas.drawCircle(Offset(w * .82, h * .05), 5, lamp);
+    _backdropPicture = recorder.endRecording();
+  }
+
   @override
   void onRemove() {
     _fieldPicture?.dispose();
     _fieldPicture = null;
+    _backdropPicture?.dispose();
+    _backdropPicture = null;
     for (final picture in _playerPictures) {
       picture.dispose();
     }
@@ -213,7 +256,7 @@ class StrikerGame extends FlameGame {
   }
 
   @override
-  Color backgroundColor() => const Color(0xff073c34);
+  Color backgroundColor() => StrikerColors.ink;
 
   void applyCosmetics(CosmeticSelection selection) {
     final fieldChanged = _netSkin != selection.net || _pitchSkin != selection.pitch;
@@ -392,6 +435,8 @@ class StrikerGame extends FlameGame {
     if (scale <= 0) {
       return;
     }
+    _prepareBackdrop(Size(size.x, size.y));
+    canvas.drawPicture(_backdropPicture!);
     canvas.save();
     canvas.translate((size.x - 400 * scale) / 2, (size.y - 640 * scale) / 2);
     canvas.scale(scale);
@@ -438,13 +483,13 @@ class StrikerGame extends FlameGame {
     }
     if (model.onFire) {
       final pulse = .16 + .1 * math.sin(model.clock * 6);
-      _fireBorderPaint.color = Color.fromRGBO(217, 255, 106, pulse);
+      _fireBorderPaint.color = Color.fromRGBO(255, 179, 64, pulse);
       c.drawRRect(_pitchBorder, _fireBorderPaint);
       _label(c, model.isChallenge ? 'FIRE SHOT' : 'ON FIRE',
-          200, 16, 13, const Color(0xffd9ff6a), spacing: 3);
+          200, 16, 13, StrikerColors.gold, spacing: 3);
     } else if (model.lastChance) {
       c.drawRRect(_pitchBorder, _lastChancePaint);
-      _label(c, 'LAST CHANCE', 200, 16, 12, const Color(0xffff777a), spacing: 2);
+      _label(c, 'LAST CHANCE', 200, 16, 12, StrikerColors.coral, spacing: 2);
     }
   }
 
@@ -452,23 +497,29 @@ class StrikerGame extends FlameGame {
     final rect = RRect.fromRectAndRadius(
         const Rect.fromLTWH(12, 12, 376, 590), const Radius.circular(24));
     final night = _pitchSkin == StarReward.nightPitch;
-    c.drawRRect(rect, Paint()..color = Color(night
-        ? _pitchSkin.primary : model.stage?.pitchColor ?? 0xff126a50));
+    final base = Color(night
+        ? _pitchSkin.primary : model.stage?.pitchColor ?? StrikerColors.grassValue);
+    final stripe = Color(night
+        ? _pitchSkin.secondary : model.stage?.stripeColor ?? StrikerColors.grassStripeValue);
+    c.drawRRect(rect, Paint()..shader = Gradient.linear(
+        const Offset(200, 12), const Offset(200, 602),
+        [Color.lerp(base, const Color(0xff3cb06a), .22)!, base, Color.lerp(base, StrikerColors.ink, .18)!],
+        const [0, .35, 1]));
     c.save();
     c.clipRRect(rect);
     for (var i = 0; i < 9; i++) {
       if (i.isEven) {
         c.drawRect(Rect.fromLTWH(12, 12 + i * 70, 376, 70),
-            Paint()..color = Color(night
-                ? _pitchSkin.secondary : model.stage?.stripeColor ?? 0xff167456));
+            Paint()..color = stripe.withValues(alpha: .38));
       }
     }
+    c.drawRect(const Rect.fromLTWH(12, 12, 376, 590), Paint()
+      ..shader = Gradient.radial(const Offset(200, 280), 280,
+          [const Color(0x00000000), const Color(0x33000000)]));
     c.restore();
     if (night) {
-      // Decorative floodlights are recorded with the static pitch, never in
-      // the per-frame animation path or collision model.
       final glow = Paint()..color = const Color(0x447edfff);
-      final lamp = Paint()..color = const Color(0xffd6f7ff);
+      final lamp = Paint()..color = StrikerColors.flood;
       for (final x in [28.0, 372.0]) {
         c.drawCircle(Offset(x, 72), 15, glow);
         c.drawRRect(RRect.fromRectAndRadius(
@@ -476,10 +527,15 @@ class StrikerGame extends FlameGame {
             const Radius.circular(2)), lamp);
       }
     }
+    c.drawRRect(RRect.fromRectAndRadius(
+        const Rect.fromLTWH(68, 20, 264, 24), const Radius.circular(4)),
+        Paint()..color = StrikerColors.raised);
+    _label(c, model.practice?.title.toUpperCase() ?? model.stage?.name.toUpperCase() ?? 'STRIKER ARENA',
+        200, 24, 11, StrikerColors.gold, spacing: 3);
     final line = Paint()
-      ..color = const Color(0x668bddad)
+      ..color = StrikerColors.pitchLine.withValues(alpha: .55)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 1.6;
     c.drawRRect(
         RRect.fromRectAndRadius(
             const Rect.fromLTWH(28, 100, 344, 484), const Radius.circular(2)),
@@ -490,32 +546,37 @@ class StrikerGame extends FlameGame {
     c.drawLine(const Offset(28, 436), const Offset(372, 436), line);
     c.drawCircle(const Offset(200, 436), 57, line);
     c.drawCircle(
-        const Offset(200, 216), 3, Paint()..color = const Color(0xff8bddad));
-    _label(c, model.practice?.title.toUpperCase() ?? model.stage?.name.toUpperCase() ?? 'STRIKER ARENA',
-        200, 36, 11, const Color(0xff9bd7b6),
-        spacing: 3);
+        const Offset(200, 216), 3, Paint()..color = StrikerColors.pitchLine);
   }
 
   void _goal(Canvas c) {
     c.drawRRect(
         RRect.fromRectAndRadius(
             const Rect.fromLTWH(60, 51, 280, 55), const Radius.circular(6)),
-        Paint()..color = const Color(0xff082f2c));
+        Paint()..shader = Gradient.linear(const Offset(200, 51), const Offset(200, 106),
+            const [Color(0xff07101f), Color(0xff0d1a30)]));
     final net = Paint()
       ..color = Color(_netSkin.primary)
       ..strokeWidth = .8;
     for (double x = 65; x <= 335; x += 15) {
-      c.drawLine(Offset(x, 55), Offset(x, 100), net);
+      final inset = (x - 200).abs() / 140 * 6;
+      c.drawLine(Offset(x, 55), Offset(x + (x < 200 ? inset : -inset), 100), net);
     }
     for (double y = 55; y < 100; y += 11) {
       c.drawLine(Offset(65, y), Offset(335, y), net);
     }
+    c.drawRect(const Rect.fromLTWH(60, 51, 280, 55), Paint()
+      ..shader = Gradient.linear(const Offset(200, 51), const Offset(200, 106),
+          [const Color(0x22000000), const Color(0x66000000)]));
     if (!model.isPractice) {
-      final glow = Paint()..color = const Color(0x66d9ff6a);
-      c.drawRect(const Rect.fromLTWH(73, 58, 37, 42), glow);
-      c.drawRect(const Rect.fromLTWH(290, 58, 37, 42), glow);
-      _label(c, '+3', 91, 72, 13, const Color(0xffe1ff8d));
-      _label(c, '+3', 309, 72, 13, const Color(0xffe1ff8d));
+      final glow = Paint()..shader = Gradient.radial(const Offset(91, 79), 28,
+          [const Color(0x88ffb340), const Color(0x00ffb340)]);
+      c.drawCircle(const Offset(91, 79), 28, glow);
+      c.drawCircle(const Offset(309, 79), 28, Paint()
+        ..shader = Gradient.radial(const Offset(309, 79), 28,
+            [const Color(0x88ffb340), const Color(0x00ffb340)]));
+      _label(c, '+3', 91, 72, 13, StrikerColors.gold);
+      _label(c, '+3', 309, 72, 13, StrikerColors.gold);
     }
     final frame = Paint()
       ..color = Color(_netSkin.secondary)
@@ -529,6 +590,13 @@ class StrikerGame extends FlameGame {
           ..lineTo(335, 54)
           ..lineTo(335, 103),
         frame);
+    final shade = Paint()
+      ..color = const Color(0x33000000)
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    c.drawLine(const Offset(67, 103), const Offset(67, 56), shade);
+    c.drawLine(const Offset(333, 103), const Offset(333, 56), shade);
   }
 
   void _player(Canvas c, double x, double y, int pictureIndex) {
@@ -544,7 +612,7 @@ class StrikerGame extends FlameGame {
         55, PracticeDrill.targetHalfWidth * 2, 48);
     c.drawRect(target, _practiceTargetFill);
     c.drawRect(target, _practiceTargetPaint);
-    _label(c, 'TARGET', model.practiceTargetX, 76, 9, const Color(0xff7edfff), spacing: 1);
+    _label(c, 'TARGET', model.practiceTargetX, 76, 9, StrikerColors.cyan, spacing: 1);
   }
 
   void _professionalKeeper(Canvas c) {
@@ -567,7 +635,7 @@ class StrikerGame extends FlameGame {
     // segments, gloves and boots have exactly the radii used for ball contact.
     c.drawArc(Rect.fromCircle(center: Offset(0, pose.headY), radius: 6.5),
         math.pi, math.pi, false, _keeperHairPaint);
-    _label(c, '1', 0, -3, 11, const Color(0xff123c33));
+    _label(c, '1', 0, -3, 11, StrikerColors.onGold);
     c.restore();
   }
 
@@ -591,7 +659,7 @@ class StrikerGame extends FlameGame {
       {bool keeper = false}) {
     c.drawOval(
         Rect.fromCenter(center: Offset(x + 2, y + 12), width: 42, height: 14),
-        Paint()..color = const Color(0x33000000));
+        Paint()..color = const Color(0x44000000));
     if (keeper) {
       c.drawLine(
           Offset(x - 25, y),
@@ -600,26 +668,30 @@ class StrikerGame extends FlameGame {
             ..color = kit
             ..strokeWidth = 10
             ..strokeCap = StrokeCap.round);
-      c.drawCircle(
-          Offset(x - 25, y), 5, Paint()..color = const Color(0xfff4f4e7));
-      c.drawCircle(
-          Offset(x + 25, y), 5, Paint()..color = const Color(0xfff4f4e7));
+      c.drawCircle(Offset(x - 25, y), 5.4, Paint()..color = StrikerColors.ball);
+      c.drawCircle(Offset(x + 25, y), 5.4, Paint()..color = StrikerColors.ball);
     }
-    c.drawRRect(
-        RRect.fromRectAndRadius(
+    final body = RRect.fromRectAndRadius(
             Rect.fromCenter(center: Offset(x, y + 2), width: 30, height: 25),
-            const Radius.circular(8)),
-        Paint()..color = kit);
-    _label(c, number, x, y - 3, 11, const Color(0xff123c33));
-    c.drawCircle(
-        Offset(x, y - 15), 9, Paint()..color = const Color(0xffd99c71));
+            const Radius.circular(8));
+    c.drawRRect(body, Paint()..color = kit);
+    c.drawRRect(RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, y + 10), width: 30, height: 10),
+        const Radius.circular(4)), Paint()..color = kit.withValues(alpha: .72));
+    c.drawRRect(body, Paint()
+      ..color = const Color(0x66000000)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2);
+    _label(c, number, x, y - 3, 11, StrikerColors.onGold);
+    c.drawCircle(Offset(x, y - 15), 9, Paint()..color = StrikerColors.skin);
+    c.drawCircle(Offset(x - 2.2, y - 16.5), 1.8, _ballHighlightPaint);
     c.drawArc(
         Rect.fromCircle(center: Offset(x, y - 16), radius: 9),
         math.pi,
         math.pi,
         false,
         Paint()
-          ..color = const Color(0xff24372d)
+          ..color = StrikerColors.hair
           ..strokeWidth = 5
           ..style = PaintingStyle.stroke);
   }
@@ -635,8 +707,10 @@ class StrikerGame extends FlameGame {
     final ux = dx / length;
     final uy = dy / length;
     for (double d = 24; d < 152; d += 15) {
-      c.drawLine(Offset(200 + ux * d, 548 + uy * d),
-          Offset(200 + ux * (d + 6), 548 + uy * (d + 6)), _aimPaint);
+      final a = Offset(200 + ux * d, 548 + uy * d);
+      final b = Offset(200 + ux * (d + 6), 548 + uy * (d + 6));
+      c.drawLine(a, b, _aimGlowPaint);
+      c.drawLine(a, b, _aimPaint);
     }
     final tip = Offset(200 + ux * 167, 548 + uy * 167);
     _aimPath
@@ -673,12 +747,13 @@ class StrikerGame extends FlameGame {
       ..moveTo(x - ux * 13 - uy * 7, y - uy * 13 + ux * 7)
       ..lineTo(x, y)
       ..lineTo(x - ux * 13 + uy * 7, y - uy * 13 - ux * 7);
+    c.drawPath(_aimPath, _aimGlowPaint);
     c.drawPath(_aimPath, _aimPaint);
     _targetDot(c, model.previewTargetX);
     c.drawCircle(const Offset(200, 548), 25, _aimRingPaint);
     _label(c, model.preparedReleaseLabel,
         200, 585, 10, model.canTimeKnuckle
-            ? const Color(0xff7edfff) : const Color(0xffd9ff6a), spacing: 1);
+            ? StrikerColors.cyan : StrikerColors.gold, spacing: 1);
     _knuckleRing(c);
     c.drawLine(const Offset(152, 602), const Offset(248, 602), _spinTrackPaint);
     c.drawLine(const Offset(200, 597), const Offset(200, 607), _spinTrackPaint);
@@ -743,6 +818,7 @@ class StrikerGame extends FlameGame {
       c.drawCircle(Offset.zero, 10, _neonHaloPaint);
     }
     c.drawCircle(Offset.zero, 8, _ballPaint);
+    c.drawCircle(const Offset(-2.4, -2.6), 2.2, _ballHighlightPaint);
     c.rotate(model.ballAngle);
     c.drawPath(_ballSkin == StarReward.championBall ? _championPatch : _ballPatch,
         _ballPatchPaint);

@@ -30,10 +30,13 @@ void main() {
     expect(audio.mix.effects, isTrue);
     expect(audio.mix.crowd, isTrue);
     await tapText(tester, 'AUDIO MIX');
+    await tester.ensureVisible(find.byKey(const ValueKey('audio_crowd')));
     await tester.tap(find.byKey(const ValueKey('audio_crowd')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('audio_effects')));
     await tester.tap(find.byKey(const ValueKey('audio_effects')));
     await tester.pump();
+    await tester.ensureVisible(find.byKey(const ValueKey('audio_master')));
     await tester.tap(find.byKey(const ValueKey('audio_master')));
     await tester.pump();
     expect(audio.enabled, isTrue);

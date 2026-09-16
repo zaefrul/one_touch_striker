@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import '../game/audio_cues.dart';
+import 'theme.dart';
 
 class AudioSettingsSheet extends StatefulWidget {
   const AudioSettingsSheet({super.key, required this.enabled, required this.mix,
-      required this.onEnabled, required this.onBus, required this.paused});
-  final bool enabled, paused;
+      required this.onEnabled, required this.onBus, required this.paused,
+      required this.haptics, required this.onHaptics});
+  final bool enabled, paused, haptics;
   final AudioMix mix;
-  final ValueChanged<bool> onEnabled;
+  final ValueChanged<bool> onEnabled, onHaptics;
   final void Function(AudioBus, bool) onBus;
 
   @override
@@ -15,6 +17,7 @@ class AudioSettingsSheet extends StatefulWidget {
 
 class _AudioSettingsSheetState extends State<AudioSettingsSheet> {
   late bool _enabled = widget.enabled;
+  late bool _haptics = widget.haptics;
   late AudioMix _mix = widget.mix;
 
   @override
@@ -24,7 +27,8 @@ class _AudioSettingsSheetState extends State<AudioSettingsSheet> {
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Text('AUDIO MIX', style: TextStyle(fontSize: 20,
-            fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            fontWeight: FontWeight.w900, letterSpacing: 1.5,
+            fontFamily: StrikerFonts.display, color: StrikerColors.text)),
         const SizedBox(height: 8),
         SwitchListTile(
           key: const ValueKey('audio_master'),
@@ -36,6 +40,15 @@ class _AudioSettingsSheetState extends State<AudioSettingsSheet> {
             widget.onEnabled(value);
           },
         ),
+        SwitchListTile(
+          title: const Text('Vibration'),
+          subtitle: const Text('Kick and result haptics'),
+          value: _haptics,
+          onChanged: (value) {
+            setState(() => _haptics = value);
+            widget.onHaptics(value);
+          },
+        ),
         const Divider(),
         _channel(AudioBus.music, 'Music', 'Menu theme and last-chance suspense'),
         _channel(AudioBus.effects, 'Shot effects', 'Kicks, saves, blocks, posts and whistles'),
@@ -45,7 +58,7 @@ class _AudioSettingsSheetState extends State<AudioSettingsSheet> {
                 : widget.paused ? 'Your match stays paused. Resume to hear your mix.'
                     : 'Your mix is saved. On iPhone, Silent Mode also mutes game audio.',
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.white60))),
+            style: const TextStyle(fontSize: 12, color: StrikerColors.muted))),
         TextButton(onPressed: () => Navigator.pop(context),
             child: const Text('DONE')),
       ]),

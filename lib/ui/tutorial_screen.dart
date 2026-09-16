@@ -6,6 +6,7 @@ import '../game/knuckle_shot.dart';
 import '../game/striker_game.dart';
 import '../game/tutorial_progress.dart';
 import 'shot_gesture_surface.dart';
+import 'theme.dart';
 
 /// A separate playable arena shares the real input, trajectory and timing.
 /// It has no reference to stars, rival records, best scores or save queues.
@@ -179,20 +180,18 @@ class _TutorialScreenState extends State<TutorialScreen>
       onPopInvokedWithResult: (didPop, result) {
         if (!didPop) _leave(skip: true);
       },
-      child: Scaffold(backgroundColor: const Color(0xff062d29), body: SafeArea(
+      child: Scaffold(backgroundColor: StrikerColors.ink, body: SafeArea(
         child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 480),
           child: Column(children: [
             Padding(padding: const EdgeInsets.fromLTRB(20, 8, 8, 0), child: Row(children: [
               Expanded(child: Text('LEARN BY PLAYING · ${_index + 1}/${widget.lessons.length}',
-                  style: const TextStyle(color: Colors.white60, fontSize: 11))),
+                  style: StrikerText.statLabel)),
               TextButton(onPressed: () => _leave(skip: true), child: const Text('Skip tutorials')),
             ])),
             Padding(padding: const EdgeInsets.symmetric(horizontal: 20), child: Column(children: [
-              Text(lesson.title, textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 25, fontWeight: FontWeight.w900)),
+              Text(lesson.title, textAlign: TextAlign.center, style: StrikerText.title),
               const SizedBox(height: 6),
-              Text(caption, textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.white60, fontSize: 12)),
+              Text(caption, textAlign: TextAlign.center, style: StrikerText.caption),
             ])),
             const SizedBox(height: 8),
             Expanded(child: Stack(fit: StackFit.expand, children: [
@@ -207,25 +206,26 @@ class _TutorialScreenState extends State<TutorialScreen>
                 ))),
               if (_passed)
                 const IgnorePointer(child: Center(child: DecoratedBox(
-                  decoration: BoxDecoration(color: Color(0xee062d29), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: Color(0xee0a1226), shape: BoxShape.circle),
                   child: Padding(padding: EdgeInsets.all(18), child: Icon(Icons.check_rounded,
-                      color: Color(0xffd9ff6a), size: 56)),
+                      color: StrikerColors.gold, size: 56)),
                 ))),
               if (_paused)
-                ColoredBox(color: const Color(0xcc062d29), child: Center(
+                ColoredBox(color: const Color(0xcc0a1226), child: Center(
                     child: FilledButton(onPressed: _resume, child: const Text('Resume lesson')))),
             ])),
             Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 16), child: Column(
               mainAxisSize: MainAxisSize.min, children: [
                 Semantics(liveRegion: true, child: Text(_passed ? 'Gesture learned!' : lesson.prompt,
                     textAlign: TextAlign.center, style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700, color: Color(0xffd9ff6a)))),
+                        fontSize: 16, fontWeight: FontWeight.w700, color: StrikerColors.gold,
+                        fontFamily: StrikerFonts.display))),
                 const SizedBox(height: 8),
                 SizedBox(height: 48, width: double.infinity, child: _passed
                     ? FilledButton(onPressed: _paused ? null : _next,
                         child: Text(_index == widget.lessons.length - 1 ? 'LET’S PLAY' : 'NEXT LESSON'))
                     : const Center(child: Text('Free practice · No chances used',
-                        style: TextStyle(color: Colors.white54, fontSize: 12)))),
+                        style: StrikerText.caption))),
               ],
             )),
           ]),
@@ -263,10 +263,10 @@ class _HandDemo extends StatelessWidget {
       if (drag > 0)
         Positioned(left: origin.dx + (direction < 0 ? 200 - drag : 200) * scale,
           top: origin.dy + 518 * scale, width: drag * scale, height: 3,
-          child: const ColoredBox(color: Color(0x887edfff))),
+          child: const ColoredBox(color: StrikerColors.cyanLine)),
       Positioned(left: point.dx - 10 * scale, top: point.dy - 8 * scale,
         child: Opacity(opacity: opacity,
-          child: Icon(Icons.touch_app_rounded, size: 44 * scale, color: Colors.white))),
+          child: Icon(Icons.touch_app_rounded, size: 44 * scale, color: StrikerColors.text))),
     ]);
   });
 }
@@ -280,14 +280,14 @@ class _TimingDemo extends CustomPainter {
     final centre = origin + const Offset(200, 548) * scale;
     final radius = 32 * scale;
     final paint = Paint()..style = PaintingStyle.stroke..strokeWidth = 4 * scale;
-    canvas.drawCircle(centre, radius, paint..color = const Color(0x667edfff));
+    canvas.drawCircle(centre, radius, paint..color = StrikerColors.cyanLine);
     canvas.drawArc(Rect.fromCircle(center: centre, radius: radius),
         -math.pi / 2 + 2 * math.pi * KnuckleShot.sweetStart / KnuckleShot.ringDuration,
         2 * math.pi * (KnuckleShot.sweetEnd - KnuckleShot.sweetStart) / KnuckleShot.ringDuration,
-        false, paint..color = const Color(0xff7edfff));
+        false, paint..color = StrikerColors.cyan);
     final angle = -math.pi / 2 + 2 * math.pi * KnuckleShot.phaseAt(seconds) / KnuckleShot.ringDuration;
     canvas.drawCircle(centre + Offset(math.cos(angle), math.sin(angle)) * radius,
-        5 * scale, paint..style = PaintingStyle.fill..color = Colors.white);
+        5 * scale, paint..style = PaintingStyle.fill..color = StrikerColors.text);
   }
   @override
   bool shouldRepaint(covariant _TimingDemo oldDelegate) =>

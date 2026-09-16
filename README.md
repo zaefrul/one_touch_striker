@@ -1,6 +1,6 @@
 # One-Touch Striker — Flutter prototype
 
-A portrait arcade football game: follow the sweeping arrow, touch to aim, drag to bend, and release to beat the keeper. All artwork is rendered in code; no external image assets or backend are needed.
+A portrait arcade football game: follow the sweeping arrow, touch to aim, drag to bend, and release to beat the keeper. All artwork is rendered in code; no external image assets or backend are needed. Menus and the pitch use a **Floodlit Night** palette (navy ink, gold actions, grass green, cyan timing) with bundled Barlow fonts. See [design tokens](docs/DESIGN.md).
 
 ## Status
 
@@ -53,8 +53,9 @@ publication without executed checks or builds; chips and driven shots are later.
 **Stadium audio** adds an original menu theme, a crowd bed that grows with
 progression, last-chance/countdown suspense, separate defender blocks, fan
 reactions, whistles and match-end stings. Home and pause offer **AUDIO MIX**
-for saved Music, Shot effects and Crowd switches; the header retains master
-mute. Loops fade between scenes and stop on pause/background. See
+for saved Music, Shot effects and Crowd switches; the header gear opens the
+same Settings sheet, including vibration. Loops fade between scenes and stop
+on pause/background. See
 [the audio rules and local listening handoff](AUDIO_EXPERIENCE.md) and
 [asset provenance](assets/AUDIO.md). The pack is about 1.8 MB before packaging;
 native playback, loop continuity and performance still need device validation.
@@ -193,6 +194,7 @@ Corner, near-post and Fire Shots have cinematic slow motion. Recorded replays ar
 | Path | Purpose |
 | --- | --- |
 | `lib/main.dart` | App shell, menu/HUD, lifecycle pause, storage and haptics |
+| `lib/ui/theme.dart` / `lib/ui/widgets.dart` | Floodlit Night tokens, ThemeData and shared menu components |
 | `lib/game/match_model.dart` | Simulation, scoring, difficulty and collisions |
 | `lib/game/shot_curve.dart` | Shared deterministic curve, drag tuning and finite release labels |
 | `lib/game/knuckle_shot.dart` | Timing window, release labels and bounded low-spin trajectory offset |

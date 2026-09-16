@@ -23,9 +23,8 @@ import 'ui/audio_settings_sheet.dart';
 import 'ui/stage_objective.dart';
 import 'ui/tutorial_screen.dart';
 import 'ui/welcome_page.dart';
-
-const lime = Color(0xffd9ff6a);
-const ink = Color(0xff062d29);
+import 'ui/theme.dart';
+import 'ui/widgets.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +32,7 @@ Future<void> main() async {
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.light,
-    systemNavigationBarColor: ink,
+    systemNavigationBarColor: StrikerColors.ink,
   ));
   runApp(const StrikerApp());
 }
@@ -46,13 +45,7 @@ class StrikerApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: 'One-Touch Striker',
         debugShowCheckedModeBanner: false,
-        theme: ThemeData(
-          brightness: Brightness.dark,
-          scaffoldBackgroundColor: ink,
-          colorScheme: const ColorScheme.dark(primary: lime, surface: ink),
-          fontFamily: 'sans-serif',
-          useMaterial3: true,
-        ),
+        theme: strikerTheme(),
         home: MatchScreen(audio: audio, autoTutorials: autoTutorials),
       );
 }
@@ -439,14 +432,20 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
 
   void _openAudioSettings() {
     if (!_progressLoaded) return;
-    unawaited(showModalBottomSheet<void>(
+    unawaited(showDialog<void>(
       context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      useSafeArea: true,
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .85),
-      builder: (_) => AudioSettingsSheet(enabled: sound, mix: _audioMix,
-          paused: game.matchPaused, onEnabled: _setSound, onBus: _setAudioBus),
+      builder: (_) => Dialog(
+        backgroundColor: StrikerColors.surface,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420, maxHeight: 460),
+          child: AudioSettingsSheet(enabled: sound, mix: _audioMix,
+              paused: game.matchPaused, onEnabled: _setSound, onBus: _setAudioBus,
+              haptics: haptics, onHaptics: (value) {
+                setState(() => haptics = value);
+                _saveBool('haptics', value);
+              }),
+        ),
+      ),
     ));
   }
 
@@ -677,32 +676,28 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(22, 12, 14, 8),
                   child: Row(children: [
-                    const Icon(Icons.sports_soccer, color: lime, size: 23),
+                    const BallGlyph(size: 24),
                     const SizedBox(width: 9),
                     const Expanded(
                         child: Text('ONE-TOUCH\nSTRIKER',
                             style: TextStyle(
+                                fontFamily: StrikerFonts.display,
                                 fontWeight: FontWeight.w900,
                                 height: 1.0,
                                 letterSpacing: 1.5,
-                                fontSize: 16))),
+                                fontSize: 18,
+                                color: StrikerColors.text))),
                     IconButton(
                       tooltip: sound ? 'Turn sound off' : 'Turn sound on',
                       onPressed: () => _setSound(!sound),
                       icon: Icon(sound ? Icons.volume_up_rounded : Icons.volume_off_rounded,
-                          size: 20, color: Colors.white60),
+                          size: 20, color: StrikerColors.muted),
                     ),
                     IconButton(
-                      tooltip:
-                          haptics ? 'Turn vibration off' : 'Turn vibration on',
-                      onPressed: () {
-                        setState(() => haptics = !haptics);
-                        _saveBool('haptics', haptics);
-                      },
-                      icon: Icon(
-                          haptics ? Icons.vibration : Icons.phone_android,
-                          size: 20,
-                          color: Colors.white60),
+                      tooltip: 'Settings',
+                      onPressed: _progressLoaded ? _openAudioSettings : null,
+                      icon: const Icon(Icons.tune_rounded, size: 20,
+                          color: StrikerColors.muted),
                     ),
                     if (model.isPlaying)
                       IconButton(
@@ -710,45 +705,45 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                           onPressed: _pause,
                           icon: Icon(game.matchPaused
                               ? Icons.play_arrow_rounded
-                              : Icons.pause_rounded)),
+                              : Icons.pause_rounded,
+                              color: StrikerColors.text)),
                     if (!model.isPlaying && (!ready || _showStages || _showRewards || _showPractice))
                       IconButton(
                           tooltip: _showRewards ? 'Back' : model.isPractice ? 'Practice arena'
                               : model.isChallenge ? 'Stage select' : 'Home',
                           onPressed: _showRewards ? _closeRewards : model.isPractice ? _practiceMenu
                               : model.isChallenge ? _stageMap : _home,
-                          icon: const Icon(Icons.arrow_back_rounded)),
+                          icon: const Icon(Icons.arrow_back_rounded, color: StrikerColors.text)),
                   ]),
                 ),
                 if (!ready && model.phase != MatchPhase.stageIntro) Padding(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
-                  child: Row(
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  child: Panel(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    color: StrikerColors.raised.withValues(alpha: .88),
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         if (model.isPractice) ...[
-                          _stat('HITS', '${model.practiceHits}/5', primary: true),
-                          _stat(_practiceHistoryAvailable ? 'BEST' : 'SESSION BEST',
+                          StatChip('HITS', '${model.practiceHits}/5', primary: true),
+                          StatChip(_practiceHistoryAvailable ? 'BEST' : 'SESSION BEST',
                               '${practiceProgress.bestFor(model.practice!)}/5'),
-                          _stat('BALLS LEFT', '${model.practiceBallsLeft}'),
+                          StatChip('BALLS LEFT', '${model.practiceBallsLeft}'),
                         ] else ...[
-                          _stat(model.isChallenge ? 'STAGE SCORE' : 'SCORE',
+                          StatChip(model.isChallenge ? 'STAGE SCORE' : 'SCORE',
                               model.score.toString().padLeft(2, '0'),
                               primary: true),
                           if (model.isChallenge)
-                            _stat(model.isTimed ? 'TIME LEFT' : 'STAGE',
+                            StatChip(model.isTimed ? 'TIME LEFT' : 'STAGE',
                                 model.isTimed ? '${model.timerSeconds}s' : '${model.level}/${challengeStages.length}',
                                 urgent: model.isTimed && model.timerSeconds <= 5)
                           else
-                            _stat('BEST', '$best'),
+                            StatChip('BEST', '$best'),
                           Column(
                               crossAxisAlignment: CrossAxisAlignment.end,
                               children: [
-                                const Text('CHANCES',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        letterSpacing: 1.8,
-                                        color: Colors.white54)),
+                                const Text('CHANCES', style: StrikerText.statLabel),
                                 const SizedBox(height: 7),
                                 Row(
                                     children: List.generate(
@@ -756,14 +751,15 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                         (i) => Padding(
                                             padding:
                                                 const EdgeInsets.only(left: 4),
-                                            child: Icon(Icons.favorite_rounded,
-                                                size: 19,
+                                            child: BallGlyph(size: 18,
+                                                dimmed: i >= model.lives,
                                                 color: i < model.lives
-                                                    ? const Color(0xffff777a)
-                                                    : Colors.white12)))),
+                                                    ? StrikerColors.gold
+                                                    : StrikerColors.faint)))),
                               ]),
                         ],
                       ]),
+                  ),
                 ),
                 Expanded(
                   child: Stack(fit: StackFit.expand, children: [
@@ -789,47 +785,62 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                       IgnorePointer(
                           child: ColoredBox(
                               color: model.lastChance
-                                  ? const Color(0x18ff777a)
-                                  : const Color(0x14d9ff6a))),
+                                  ? StrikerColors.coralSoft
+                                  : StrikerColors.goldSoft)),
                     if (model.phase == MatchPhase.result && !game.matchPaused)
                       IgnorePointer(
                           child: Center(
-                              child: Container(
+                              child: Panel(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 22, vertical: 16),
-                        decoration: BoxDecoration(
-                            color: ink.withValues(alpha: .94),
-                            borderRadius: BorderRadius.circular(20)),
+                        color: StrikerColors.ink.withValues(alpha: .94),
                         child:
                             Column(mainAxisSize: MainAxisSize.min, children: [
                           Text(model.message,
                               textAlign: TextAlign.center,
                               style: TextStyle(
                                   color: model.lastWasGoal
-                                      ? lime
-                                      : const Color(0xffff777a),
+                                      ? StrikerColors.gold
+                                      : StrikerColors.coral,
                                   fontSize: model.lastWasCorner ? 34 : 28,
+                                  fontFamily: StrikerFonts.display,
                                   fontWeight: FontWeight.w900)),
                           const SizedBox(height: 6),
                           if (model.lastWasGoal)
                             Text('+${model.lastPoints}', style: const TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.w800, fontSize: 19)),
+                                color: StrikerColors.text, fontWeight: FontWeight.w800, fontSize: 19,
+                                fontFamily: StrikerFonts.display)),
                           if (model.shotIsKnuckle || model.shotSpin != 0)
                             Text(model.lastTechnique, textAlign: TextAlign.center,
-                                style: const TextStyle(color: Color(0xff7edfff), fontSize: 12)),
+                                style: const TextStyle(color: StrikerColors.cyan, fontSize: 12,
+                                    fontFamily: StrikerFonts.body)),
                           if (model.isPractice)
                             Text(model.lastPracticeNote, textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                style: StrikerText.caption),
                         ]),
                       ))),
                     if (ready || finished || stageOverlay || game.matchPaused)
-                      ColoredBox(
-                          color: ink.withValues(alpha: .80),
+                      OverlayScrim(
                           child: LayoutBuilder(
-                              builder: (context, constraints) =>
-                                  SingleChildScrollView(
-                                    key: ValueKey((model.phase, model.stageIndex,
-                                        model.practice, _showStages, _showRewards, _showPractice, game.matchPaused)),
+                              builder: (context, constraints) {
+                                final switchKey = (model.phase, model.stageIndex,
+                                    model.practice, _showStages, _showRewards, _showPractice, game.matchPaused);
+                                return AnimatedSwitcher(
+                                  duration: strikerMotion(context),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  transitionBuilder: (child, animation) => FadeTransition(
+                                    opacity: animation,
+                                    child: SlideTransition(
+                                      position: Tween<Offset>(
+                                        begin: const Offset(0, 0.03),
+                                        end: Offset.zero,
+                                      ).animate(animation),
+                                      child: child,
+                                    ),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    key: ValueKey(switchKey),
                                     child: ConstrainedBox(
                                         constraints: BoxConstraints(
                                             minHeight: constraints.maxHeight),
@@ -838,7 +849,9 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
                                           padding: const EdgeInsets.all(26),
                                           child: _overlay(ready, finished),
                                         ))),
-                                  ))),
+                                  ),
+                                );
+                              })),
                   ]),
                 ),
                 _footer(),
@@ -849,21 +862,6 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
-  Widget _stat(String label, String value, {bool primary = false, bool urgent = false}) => Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 10, letterSpacing: 1.8, color: Colors.white54)),
-          Text(value,
-              style: TextStyle(
-                  fontSize: primary ? 36 : 28,
-                  height: 1.15,
-                  color: urgent ? const Color(0xffff777a) : primary ? lime : Colors.white,
-                  fontWeight: FontWeight.w900)),
-        ],
-      );
 
   Widget _overlay(bool ready, bool finished) {
     if (ready && _showPractice) {
@@ -885,7 +883,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       return HomePanel(progress: progress, loaded: _progressLoaded,
           onQuickPlay: _quickPlay, onStages: _stageMap,
           onClassic: _startClassic, onRewards: _openRewards, onPractice: _practiceMenu,
-          onAudio: _progressLoaded ? _openAudioSettings : null);
+          onAudio: _progressLoaded ? _openAudioSettings : null, best: best);
     }
     if (model.isPractice && finished && !game.matchPaused) {
       return PracticeResultPanel(model: model, best: practiceProgress.bestFor(model.practice!),
@@ -908,35 +906,27 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
       );
     }
     return Column(mainAxisSize: MainAxisSize.min, children: [
-      Text(finished ? 'FULL TIME' : 'TAKE A BREATHER',
-          style: const TextStyle(color: lime, fontSize: 10, letterSpacing: 2,
-              fontWeight: FontWeight.bold)),
+      Eyebrow(finished ? 'FULL TIME' : 'TAKE A BREATHER'),
       const SizedBox(height: 16),
       Text(finished ? '${model.score}' : 'PAUSED', textAlign: TextAlign.center,
-          style: TextStyle(fontSize: finished ? 78 : 43,
-              fontWeight: FontWeight.w900, height: 1.02, letterSpacing: -1.5)),
+          style: StrikerText.score.copyWith(fontSize: finished ? 78 : 43)),
       const SizedBox(height: 16),
       Text(finished ? 'Best $best · Aim for ${best + 1} points next.'
           : model.isPractice ? '${model.practice!.title}\nYour drill is paused.' : model.isChallenge
               ? '${model.stage!.name}\nYour objective and clock are paused.'
               : 'Your match is waiting.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.white70, height: 1.6, fontSize: 14)),
+          textAlign: TextAlign.center, style: StrikerText.body),
       if (finished && model.lastFailure != null) ...[
         const SizedBox(height: 12),
         Text(model.retryAdvice, textAlign: TextAlign.center,
-            style: const TextStyle(color: lime, height: 1.4, fontSize: 13)),
+            style: const TextStyle(color: StrikerColors.gold, height: 1.4, fontSize: 13,
+                fontFamily: StrikerFonts.body)),
       ],
       const SizedBox(height: 18),
-      SizedBox(width: double.infinity,
-          child: FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: lime, foregroundColor: ink,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+      PrimaryButton(
             onPressed: finished ? _startClassic : _pause,
-            child: Padding(padding: const EdgeInsets.symmetric(vertical: 18),
-                child: Text(finished ? 'PLAY AGAIN  ↻' : 'RESUME  →',
-                    style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-          )),
+            label: finished ? 'PLAY AGAIN  ↻' : 'RESUME  →',
+          ),
       if (finished) ...[
         const SizedBox(height: 22),
         RunSummary(model: model, personalBest: _personalBest, previousBest: _bestBeforeRun),
@@ -948,12 +938,12 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         Padding(padding: const EdgeInsets.only(top: 10),
             child: TextButton(onPressed: _endRun,
                 child: Text(model.isPractice ? 'END DRILL' : model.isChallenge ? 'END STAGE' : 'END RUN',
-                    style: const TextStyle(color: Colors.white54,
-                        fontWeight: FontWeight.w800, letterSpacing: 1.6)))),
+                    style: const TextStyle(color: StrikerColors.muted,
+                        fontWeight: FontWeight.w800, letterSpacing: 1.6,
+                        fontFamily: StrikerFonts.display)))),
         if (model.isChallenge && !model.objectiveMet)
           const Text('Ending this attempt gives the keeper a win.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: Colors.white54)),
+              textAlign: TextAlign.center, style: StrikerText.caption),
       ],
     ]);
   }
@@ -971,15 +961,13 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
     }
     if (_showPractice) {
       return const Padding(padding: EdgeInsets.all(18),
-          child: Text('FIVE BALLS · INSTANT RETRY',
-              style: TextStyle(fontSize: 10, color: Colors.white60, letterSpacing: 1)));
+          child: Text('FIVE BALLS · INSTANT RETRY', style: StrikerText.statLabel));
     }
     final stage = model.stage;
     if (!model.isPlaying || game.matchPaused) {
       return storageAvailable ? const SizedBox(height: 8)
           : const Padding(padding: EdgeInsets.all(8),
-              child: Text('Progress saving unavailable',
-                  style: TextStyle(color: Colors.white60, fontSize: 11)));
+              child: Text('Progress saving unavailable', style: StrikerText.caption));
     }
     final hint = _playHint();
     return Padding(padding: const EdgeInsets.fromLTRB(20, 10, 20, 14),
@@ -991,16 +979,17 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
             : model.fireReady ? 'Fire shot ready. Next goal scores double.'
                 : '${model.fireCharge} of ${stage.fireChargeGoals} to Fire',
           child: ExcludeSemantics(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            const Icon(Icons.local_fire_department_rounded, color: Color(0xffffc857), size: 19),
+            const Icon(Icons.local_fire_department_rounded, color: StrikerColors.gold, size: 19),
             const SizedBox(width: 6),
             Text(model.onFire ? 'FIRE · ×2' : stage == null ? '${model.streak}/5' : 'FIRE',
-                style: const TextStyle(color: Color(0xffffc857), fontSize: 11)),
+                style: const TextStyle(color: StrikerColors.gold, fontSize: 11,
+                    fontFamily: StrikerFonts.display, fontWeight: FontWeight.w700)),
             if (stage != null) ...[
               const SizedBox(width: 8),
               for (var i = 0; i < stage.fireChargeGoals; i++)
                 Container(width: 16, height: 6, margin: const EdgeInsets.only(left: 4),
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(3),
-                        color: i < model.fireCharge ? const Color(0xffffc857) : Colors.white12)),
+                        color: i < model.fireCharge ? StrikerColors.gold : StrikerColors.outline)),
             ],
           ])),
         ),
@@ -1008,7 +997,7 @@ class _MatchScreenState extends State<MatchScreen> with WidgetsBindingObserver {
         SizedBox(height: MediaQuery.textScalerOf(context).scale(28),
             child: Center(child: Text(hint, maxLines: 2, overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 12, color: Colors.white70)))),
+            style: StrikerText.caption))),
       ]),
     );
   }
