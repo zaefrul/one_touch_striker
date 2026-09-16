@@ -1,18 +1,37 @@
 # Local prototype playtest
 
-No checks below have been run by Codex. Complete them locally before deciding
-whether to expand this prototype or migrate the Flutter campaign.
+Headless import and `tests/cup_smoke.gd` cover save/unlock/rematch rules and
+effect hooks. They cannot judge visuals, audio mix or whether a weakness is
+readable on a phone. Complete the checks below before deciding whether to
+expand this prototype or migrate the Flutter campaign.
 
 ## First local pass
 
 1. Import `project.godot` in the Godot 4 Standard editor. Record the editor
    version, renderer and any parser/import errors.
-2. Run the main scene. Confirm the complete goal, ball and lower prompt fit the
-   portrait window, and the goal remains visible above the result card.
-3. Play all five balls with mouse input. Confirm the objective says 3 goals,
-   the round uses five balls, and one click starts the next attempt.
+2. Run the main scene. Confirm it opens on the **Rival Cup** map, not a live
+   set, and that the goal, ball and sheets fit the portrait window.
+3. Play The Sweeper with mouse input. Confirm the intro shows **Score 3 goals**,
+   one weakness line and a 3 · 4 · 5 star row, then a five-ball set.
 4. Repeat on physical Android and iPhone hardware. Record model, OS version,
    export type and display refresh rate. Check notches and system gesture areas.
+
+## Rival Cup loop
+
+| Action | Expected observation |
+| --- | --- |
+| Fresh save | Only The Sweeper is unlocked |
+| Score 3 / 4 / 5 against a rival | 1 / 2 / 3 stars; best is kept |
+| Finish a set | Exactly one win or loss is written |
+| Clear The Sweeper | The Sentinel unlocks; Sweeper stays rematchable |
+| Leave via Cup or Rematch after two balls | No stars or record are written |
+| Beat all three | Cup Ball unlocks; first result offers Equip Cup Ball |
+| Equip from the cup map | The spot ball uses gold panels; toggle returns to Classic |
+| Open the cup map | Locked Cup Ball slowly rotates with a padlock caption |
+
+Ask, without coaching, whether they **voluntarily rematch** and can explain
+**what they will do differently** against that keeper. Those two observations
+are the hook check: “I spotted his weakness—and that winning goal was mine.”
 
 ## Input and timing
 
@@ -47,11 +66,11 @@ tablet-sized viewport. Also try a short desktop window to exercise menu scrollin
   several revolutions; watch the blue zone and check the bend meter at both ends.
 - The first ball says **Drag to bend**; later ready balls use only **Touch to lock**.
   Restart brings the first-ball cue back. Holding shows **Release to shoot**.
-- Each result shows one clear outcome, one technique line and **Next ball**.
-  The fifth result shows the final goal total and **Play again**, with appropriate
-  wording for zero goals, one goal, a win and a perfect five.
-  Pause, Help and Sound remain reachable from results; returning from Pause/Help
-  restores the same result without consuming a ball.
+- Each per-ball result shows one clear outcome, one technique line and **Next ball**.
+  The fifth result shows stars, the next target and one primary action
+  (Rematch, Next rival, or Equip Cup Ball). Pause, Help and Sound remain
+  reachable from results; returning from Pause/Help restores the same result
+  without consuming a ball.
 - Pause has **Resume**, **Restart set**, **Controls** and the current sound setting.
   Help has three compact technique rows. Text wraps inside the card, and content
   scrolls when necessary without moving the action buttons off-screen.
@@ -80,10 +99,25 @@ tablet-sized viewport. Also try a short desktop window to exercise menu scrollin
   to the final target after committing.
 - The keeper uses capsule geometry and substep sampling. Record close-contact
   disagreements with video; do not infer fairness from source review alone.
+- Confirm each rival's tell is readable: Sweeper leaves a side, Sentinel pauses,
+  Gambler overstays the right. Difficulty numbers are first-pass guesses.
+
+## Signature goals, tension and celebration
+
+- A high wide corner should read **TOP BINS!** even if the ball later rebounds
+  in the net. A banana into that corner keeps both facts; the title stays the
+  rarer line.
+- A clean knuckle goal should read **PURE KNUCKLE!** and fire the knuckle stinger.
+- Next ball, Rematch or Cup during the camera push must snap the camera home and
+  clear particles. Pause mid-celebration freezes the burst and resumes it.
+- After two goals with one ball left, the track marker and goal count should
+  pulse harder and suspense should sit under the crowd. The cue clears on the
+  fifth resolution. No extra on-screen copy.
 
 ## Sound and lifecycle
 
-- Check kick, net, save, post and wide effects, crowd cheer and ambience.
+- Check kick, net, save, post and wide effects, crowd cheer, fire_goal, victory,
+  groan, suspense and ambience.
 - Toggle the speaker off, restart the app, and confirm it stays muted.
 - Pause/background during audio and confirm it pauses without overlapping loops.
 - Restart during feedback and confirm old effects stop and the new set is ready.
@@ -110,8 +144,9 @@ which one they play first. Observe without coaching:
 - Can they intentionally choose straight, curve and knuckle?
 - Can they explain a save or miss?
 - Do they voluntarily choose another set?
+- Can they name a rival weakness and say what they will try next?
 - Which presentation makes the shot easier to read and more satisfying?
 
 Record player comments and voluntary retries; do not treat a handful of sessions
-as proven retention or revenue. Expand beyond one arena only after the controls,
+as proven retention or revenue. Expand beyond one cup only after the controls,
 visible contacts and performance are satisfactory on the chosen devices.

@@ -2,8 +2,8 @@
 config_version=5
 
 [application]
-config/name="One-Touch Striker - 3D Arena"
-config/description="A five-ball 3D penalty prototype."
+config/name="One-Touch Striker - Rival Cup"
+config/description="A three-rival 3D penalty cup prototype."
 run/main_scene="res://main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.png"
@@ -28,5 +28,6 @@ common/physics_interpolation=true
 [rendering]
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true
 anti_aliasing/quality/msaa_3d=1
-environment/defaults/default_clear_color=Color(0.025, 0.08, 0.105, 1)
+environment/defaults/default_clear_color=Color(0.039, 0.071, 0.149, 1)

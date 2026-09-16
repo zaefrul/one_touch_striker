@@ -15,7 +15,7 @@ the existing 3D scene and camera are retained.
 | Corners | 16 on all cards and buttons |
 | Typography | 12 captions; 14 body; 18 cue; 20 arena title; 22 objective; 24 goal count; 28 sheet title |
 | Touch areas | At least 48 x 48; primary actions at least 52 high |
-| Colour | Deep green surfaces, pale text, lime actions, cyan timing, coral misses |
+| Colour | Floodlit Night: navy surfaces, warm text, gold actions, cyan timing, coral misses |
 | Shot history | Five circles; check/cross shapes supplement colour |
 | Small windows | Sheet content scrolls; primary and secondary actions stay visible |
 
@@ -26,14 +26,20 @@ timing ring follows the ball's projected position.
 
 ## Screen hierarchy
 
-- **Ready:** arena title and toolbar; objective and remaining balls; open pitch;
+- **Cup map:** three rival cards (kit, stars, You W · Keeper L, lock) plus the
+  Cup Ball reward card and one primary **Play next rival**.
+- **Rival intro:** name, Score 3 goals, one weakness line, a three-star row
+  labelled 3 · 4 · 5, **Start**, and a quiet Cup link.
+- **Ready:** rival name and toolbar; objective and remaining balls; open pitch;
   one bottom cue. Extra drag guidance appears on the first ball only.
 - **Holding:** replace the ready cue with a release prompt and technique/meter.
   The ring continues rotating for the entire hold.
 - **In flight:** remove the bottom cue. The objective stays in place.
 - **Shot result:** a bottom sheet with outcome, technique and Next ball. Restart
   is available from Pause rather than competing with Next ball after every shot.
-- **Final result:** final total, a short next target and Play again.
+- **Set result:** stars, the next target line, and one primary action (Rematch,
+  Next rival, or Equip Cup Ball). Rematch is a quiet link after a clear. Cup is
+  always a quiet link.
 - **Pause:** a centred sheet with round status, controls/audio, Resume and Restart.
 - **Help:** a centred sheet with three illustrated technique rows and Back to play.
 

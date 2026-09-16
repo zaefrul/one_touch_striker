@@ -7,11 +7,20 @@ signal resume_requested
 signal next_requested
 signal restart_requested
 signal sound_changed(enabled: bool)
+signal start_requested
+signal rematch_requested
+signal next_rival_requested
+signal cup_requested
+signal play_next_requested
+signal equip_requested
+signal rival_chosen(index: int)
+signal reward_toggled
 
 const Shot = preload("res://scripts/shot_math.gd")
 const UI = preload("res://scripts/ui_theme.gd")
 const Track = preload("res://scripts/shot_track.gd")
 const Meter = preload("res://scripts/bend_meter.gd")
+const Stars = preload("res://scripts/star_row.gd")
 const ICON_PAUSE = preload("res://ui/icons/pause.svg")
 const ICON_HELP = preload("res://ui/icons/help.svg")
 const ICON_SOUND = preload("res://ui/icons/sound_on.svg")
@@ -38,7 +47,10 @@ var outcomes: Array[String] = []
 var _safe_rect: Rect2
 var _hud_margin: MarginContainer
 var _hud_column: VBoxContainer
+var _wordmark: Label
+var _arena_title: Label
 var _objective_card: PanelContainer
+var _objective_eyebrow: Label
 var _goal_count: Label
 var _ball_count: Label
 var _track: ArenaShotTrack
@@ -62,15 +74,28 @@ var _sheet_title: Label
 var _sheet_icon: TextureRect
 var _sheet_detail: Label
 var _sheet_note: Label
+var _stars: ArenaStarRow
+var _cup_block: VBoxContainer
+var _rival_rows: Array[Dictionary] = []
+var _reward_card: PanelContainer
+var _reward_title: Label
+var _reward_detail: Label
+var _reward_lock: Label
 var _help_rows: VBoxContainer
 var _pause_tools: HBoxContainer
 var _menu_sound: Button
 var _footer: VBoxContainer
 var _primary: Button
 var _secondary: Button
+var _quiet: Button
+var _taunt: PanelContainer
+var _taunt_label: Label
+var _taunt_until: int = 0
 var _sheet_mode: String = ""
+var _primary_action: String = ""
 var _fit_pending: bool = false
 var _knuckle_hint: bool = false
+var _resume_mode: String = ""
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -83,12 +108,12 @@ func _ready() -> void:
 	_spacer(_hud_column, false)
 	_build_cue()
 	_build_sheet()
+	_build_taunt()
 	resized.connect(_layout)
 	_layout()
 	set_score([])
 	show_ready()
 
-# Containers own all control positions; only the ball's timing ring is projected.
 func _full_margin(parent: Control) -> MarginContainer:
 	var margin: MarginContainer = MarginContainer.new()
 	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -156,7 +181,7 @@ func _icon_button(parent: Node, texture: Texture2D, description: String) -> Butt
 	button.tooltip_text = description
 	return button
 
-func _icon(parent: Node, texture: Texture2D, color: Color = UI.LIME) -> TextureRect:
+func _icon(parent: Node, texture: Texture2D, color: Color = UI.GOLD) -> TextureRect:
 	var icon: TextureRect = TextureRect.new()
 	icon.texture = texture
 	icon.custom_minimum_size = Vector2(32, 32)
@@ -174,11 +199,11 @@ func _build_header() -> void:
 	var brand: VBoxContainer = _column(header, 2)
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	brand.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	var wordmark: Label = _label(brand, "ONE-TOUCH", 12, UI.LIME)
-	wordmark.clip_text = true
-	var title: Label = _label(brand, "Penalty arena", 20)
-	title.clip_text = true
-	title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_wordmark = _label(brand, "ONE-TOUCH", 12, UI.GOLD)
+	_wordmark.clip_text = true
+	_arena_title = _label(brand, "Rival Cup", 20)
+	_arena_title.clip_text = true
+	_arena_title.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var toolbar: HBoxContainer = _row(header, 8)
 	_pause = _icon_button(toolbar, ICON_PAUSE, "Pause")
 	_pause.pressed.connect(func() -> void: pause_requested.emit())
@@ -194,11 +219,12 @@ func _build_objective() -> void:
 	_objective_card.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_hud_column.add_child(_objective_card)
 	var column: VBoxContainer = _column(_objective_card)
+	_objective_eyebrow = _label(column, "THE SWEEPER", 12, UI.GOLD)
 	var heading: HBoxContainer = _row(column)
 	var objective: Label = _label(heading, "Score 3 goals", 22, UI.TEXT, true)
 	objective.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	objective.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	_goal_count = _label(heading, "0 / 3", 24, UI.LIME)
+	_goal_count = _label(heading, "0 / 3", 24, UI.GOLD)
 	var progress: HBoxContainer = _row(column)
 	_track = Track.new()
 	progress.add_child(_track)
@@ -254,6 +280,9 @@ func _build_sheet() -> void:
 	_sheet_icon = _icon(title_row, ICON_GOAL)
 	_sheet_detail = _label(heading, "", 14, UI.MUTED, true)
 	_sheet_note = _label(_sheet_body, "", 14, UI.MUTED, true)
+	_stars = Stars.new()
+	_sheet_body.add_child(_stars)
+	_build_cup_block()
 	_build_help_rows()
 	_pause_tools = _row(_sheet_body)
 	var controls: Button = _button(_pause_tools, "Controls")
@@ -275,10 +304,64 @@ func _build_sheet() -> void:
 	_primary.custom_minimum_size.y = 52
 	_primary.pressed.connect(_primary_pressed)
 	_secondary = _button(_footer, "Restart set")
-	_secondary.pressed.connect(func() -> void: restart_requested.emit())
+	_secondary.pressed.connect(_secondary_pressed)
+	_quiet = _button(_footer, "Cup")
+	_quiet.pressed.connect(func() -> void: cup_requested.emit())
 	_sheet_body.resized.connect(_request_sheet_fit)
 	_sheet_body.minimum_size_changed.connect(_request_sheet_fit)
 	_shade.hide()
+
+func _build_cup_block() -> void:
+	_cup_block = _column(_sheet_body, 10)
+	for i in range(3):
+		var card: PanelContainer = PanelContainer.new()
+		card.add_theme_stylebox_override("panel", UI.card(UI.RAISED, 12))
+		_cup_block.add_child(card)
+		var row: HBoxContainer = _row(card, 10)
+		var swatch: ColorRect = ColorRect.new()
+		swatch.custom_minimum_size = Vector2(28, 28)
+		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(swatch)
+		var words: VBoxContainer = _column(row, 2)
+		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var name_label: Label = _label(words, "", 17)
+		var record: Label = _label(words, "", 12, UI.MUTED)
+		var side: VBoxContainer = _column(row, 4)
+		side.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var star_row: ArenaStarRow = Stars.new()
+		star_row.custom_minimum_size = Vector2(96, 28)
+		side.add_child(star_row)
+		var lock: Label = _label(side, "", 12, UI.MUTED)
+		lock.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
+		var index: int = i
+		card.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+				rival_chosen.emit(index)
+		)
+		_rival_rows.append({
+			"card": card,
+			"swatch": swatch,
+			"name": name_label,
+			"record": record,
+			"stars": star_row,
+			"lock": lock,
+		})
+	_reward_card = PanelContainer.new()
+	_reward_card.add_theme_stylebox_override("panel", UI.card(UI.RAISED, 12))
+	_cup_block.add_child(_reward_card)
+	var reward_row: HBoxContainer = _row(_reward_card, 10)
+	var words: VBoxContainer = _column(reward_row, 2)
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_reward_title = _label(words, "CUP BALL", 12, UI.GOLD)
+	_reward_detail = _label(words, "Win all three rivals", 14, UI.MUTED, true)
+	_reward_lock = _label(reward_row, "🔒", 22, UI.GOLD)
+	_reward_card.mouse_filter = Control.MOUSE_FILTER_STOP
+	_reward_card.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			reward_toggled.emit()
+	)
+	_cup_block.hide()
 
 func _build_help_rows() -> void:
 	_help_rows = _column(_sheet_body, 20)
@@ -295,12 +378,18 @@ func _help_row(texture: Texture2D, heading: String, detail: String) -> void:
 	_label(words, heading, 17, UI.TEXT, true)
 	_label(words, detail, 14, UI.MUTED, true)
 
+func _build_taunt() -> void:
+	_taunt = PanelContainer.new()
+	_taunt.add_theme_stylebox_override("panel", UI.card(UI.RAISED, 8))
+	_taunt.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_taunt)
+	_taunt_label = _label(_taunt, "", 13, UI.TEXT)
+	_taunt.hide()
+
 func _layout() -> void:
 	if _sheet_column == null:
 		return
 	_safe_rect = Rect2(Vector2.ZERO, size)
-	# Display safe areas are screen pixels. Convert to the stretched viewport's
-	# coordinates, rather than treating pixels as logical UI units.
 	if OS.get_name() == "Android" or OS.get_name() == "iOS":
 		var display_safe: Rect2i = DisplayServer.get_display_safe_area()
 		if display_safe.has_area():
@@ -330,8 +419,6 @@ func _fit_sheet() -> void:
 	_fit_pending = false
 	if not _shade.visible:
 		return
-	# Keep the actions outside the scroll area. Text can grow/wrap on smaller
-	# windows without pushing Resume, Next ball or Play again off the screen.
 	var available: float = _safe_rect.size.y - UI.EDGE * 2 - 40.0 - 16.0
 	available -= _footer.get_combined_minimum_size().y
 	var content_height: float = _sheet_body.get_combined_minimum_size().y
@@ -350,6 +437,19 @@ func set_score(results: Array[String]) -> void:
 	_track.set_outcomes(outcomes)
 	if _cue_panel.visible and not holding:
 		_cue_row.visible = outcomes.is_empty()
+
+func set_rival(title: String) -> void:
+	_arena_title.text = title
+	_objective_eyebrow.text = title.to_upper()
+
+func set_play_hud(visible_play: bool) -> void:
+	_objective_card.visible = visible_play
+	_cue_panel.visible = visible_play
+	_pause.visible = visible_play
+
+func set_tension(level: int) -> void:
+	_track.set_pulse(0.0 if level <= 0 else (1.2 if level == 1 else 2.8))
+	_goal_count.modulate = Color(1.15, 1.08, 0.9) if level >= 1 else Color.WHITE
 
 func set_sound(enabled: bool) -> void:
 	_sound.set_pressed_no_signal(enabled)
@@ -390,70 +490,176 @@ func show_hold(phase: float, amount: float, committed: bool, clean: bool, at: Ve
 
 func show_flight() -> void:
 	holding = false
-	# Resume during a shot must dismiss the pause shade as well as the prompt.
 	_close_sheet()
 	_cue_panel.hide()
 	queue_redraw()
 
-func show_result(outcome: String, technique: String, final_ball: bool) -> void:
+func show_result(outcome: String, technique: String, title_override: String = "") -> void:
 	holding = false
 	_cue_panel.hide()
-	var goals: int = outcomes.count("GOAL")
 	_sheet_eyebrow.text = "BALL %d OF 5" % outcomes.size()
-	_sheet_title.text = RESULT_TITLES.get(outcome, outcome.capitalize())
-	_sheet_title.add_theme_color_override("font_color", UI.LIME if outcome == "GOAL" else UI.CORAL)
+	_sheet_title.text = title_override if title_override != "" else RESULT_TITLES.get(outcome, outcome.capitalize())
+	_sheet_title.add_theme_color_override("font_color", UI.GOLD if outcome == "GOAL" else UI.CORAL)
 	_sheet_icon.texture = ICON_GOAL if outcome == "GOAL" else ICON_MISS
-	_sheet_icon.modulate = UI.LIME if outcome == "GOAL" else UI.CORAL
+	_sheet_icon.modulate = UI.GOLD if outcome == "GOAL" else UI.CORAL
 	_sheet_detail.text = technique
 	_sheet_detail.show()
 	_sheet_note.hide()
+	_stars.hide()
 	_primary.text = "Next ball"
-	if final_ball:
-		_sheet_eyebrow.text = "SET COMPLETE"
-		_sheet_title.text = "Keeper beaten" if goals >= 3 else "One more try"
-		_sheet_title.add_theme_color_override("font_color", UI.LIME if goals >= 3 else UI.TEXT)
-		_sheet_icon.texture = ICON_TROPHY if goals >= 3 else ICON_AIM
-		_sheet_icon.modulate = UI.LIME
-		_sheet_detail.text = "%d goals from 5 balls" % goals if goals != 1 else "1 goal from 5 balls"
-		var missing: int = maxi(0, 3 - goals)
-		_sheet_note.text = "Target cleared. Can you score all five?" if goals >= 3 else "%d more %s to win." % [missing, "goal" if missing == 1 else "goals"]
-		if goals == 5:
-			_sheet_note.text = "Five from five. A perfect set."
-		_sheet_note.show()
-		_primary.text = "Play again"
+	_primary_action = "next"
 	_open_sheet("result")
+	queue_redraw()
+
+func show_set_result(goals: int, stars: int, next_line: String, won: bool, first_cup_win: bool, has_next: bool) -> void:
+	holding = false
+	_cue_panel.hide()
+	_sheet_eyebrow.text = "SET COMPLETE"
+	_sheet_title.text = "Keeper beaten" if won else "One more try"
+	_sheet_title.add_theme_color_override("font_color", UI.GOLD if won else UI.TEXT)
+	_sheet_icon.texture = ICON_TROPHY if won else ICON_AIM
+	_sheet_icon.modulate = UI.GOLD
+	_sheet_detail.text = "%d goals from 5 balls" % goals if goals != 1 else "1 goal from 5 balls"
+	_sheet_detail.show()
+	_sheet_note.text = next_line
+	_sheet_note.show()
+	_stars.show()
+	_stars.set_stars(stars, false)
+	if first_cup_win:
+		_primary.text = "Equip Cup Ball"
+		_primary_action = "equip"
+	elif won and has_next:
+		_primary.text = "Next rival"
+		_primary_action = "next_rival"
+	elif won:
+		_primary.text = "Cup"
+		_primary_action = "cup"
+	else:
+		_primary.text = "Rematch"
+		_primary_action = "rematch"
+	_open_sheet("set_result")
+	_secondary.visible = won
+	_secondary.text = "Rematch"
+	_quiet.visible = true
+	_quiet.text = "Cup"
+	queue_redraw()
+
+func show_intro(profile: RivalProfile) -> void:
+	holding = false
+	_cue_panel.hide()
+	set_play_hud(false)
+	_arena_title.text = profile.title
+	_sheet_eyebrow.text = profile.intro_cue
+	_sheet_title.text = profile.title
+	_sheet_title.add_theme_color_override("font_color", profile.kit)
+	_sheet_icon.texture = ICON_AIM
+	_sheet_icon.modulate = profile.kit
+	_sheet_detail.text = "Score 3 goals"
+	_sheet_detail.show()
+	_sheet_note.text = profile.weakness
+	_sheet_note.show()
+	_stars.show()
+	_stars.set_stars(0, true)
+	_primary.text = "Start"
+	_primary_action = "start"
+	_open_sheet("intro")
+	_quiet.visible = true
+	_quiet.text = "Cup"
+	queue_redraw()
+
+func show_cup(progress: CupProgress) -> void:
+	holding = false
+	_cue_panel.hide()
+	set_play_hud(false)
+	_arena_title.text = "Rival Cup"
+	_sheet_eyebrow.text = "RIVAL CUP"
+	_sheet_title.text = "Pick your keeper"
+	_sheet_title.add_theme_color_override("font_color", UI.TEXT)
+	_sheet_icon.texture = ICON_TROPHY
+	_sheet_icon.modulate = UI.GOLD
+	_sheet_detail.text = "Score 3 goals. Stars stay. Rematch anyone you have cleared."
+	_sheet_detail.show()
+	_sheet_note.hide()
+	_stars.hide()
+	var roster: Array[RivalProfile] = RivalProfile.roster()
+	for i in range(roster.size()):
+		var profile: RivalProfile = roster[i]
+		var row: Dictionary = _rival_rows[i]
+		var unlocked: bool = progress.is_unlocked(i)
+		row["swatch"].color = profile.kit if unlocked else UI.FAINT
+		row["name"].text = profile.title
+		row["record"].text = "You %d · Keeper %d" % [progress.wins_of(profile.id), progress.losses_of(profile.id)]
+		row["stars"].set_stars(progress.stars_of(profile.id))
+		row["lock"].text = "" if unlocked else "Locked"
+		row["card"].modulate = Color.WHITE if unlocked else Color(1, 1, 1, 0.55)
+	if progress.cup_won():
+		_reward_detail.text = "Equipped" if progress.ball == "cup" else "Tap to equip"
+		_reward_lock.text = "●" if progress.ball == "cup" else "○"
+	else:
+		_reward_detail.text = "Win all three rivals"
+		_reward_lock.text = "🔒"
+	_primary.text = "Play next rival"
+	_primary_action = "play_next"
+	_open_sheet("cup")
 	queue_redraw()
 
 func show_menu(help_page: bool) -> void:
 	holding = false
 	_cue_panel.hide()
-	_sheet_eyebrow.text = "CONTROLS" if help_page else "PENALTY ARENA"
+	if _sheet_mode != "help" and _sheet_mode != "pause":
+		_resume_mode = _sheet_mode
+	_sheet_eyebrow.text = "CONTROLS" if help_page else "RIVAL CUP"
 	_sheet_title.text = "Make your shot" if help_page else "Paused"
 	_sheet_title.add_theme_color_override("font_color", UI.TEXT)
 	_sheet_icon.texture = ICON_HELP if help_page else ICON_PAUSE
-	_sheet_icon.modulate = UI.LIME
+	_sheet_icon.modulate = UI.GOLD
 	var goals: int = outcomes.count("GOAL")
 	var left: int = maxi(0, 5 - outcomes.size())
 	_sheet_detail.text = "%d %s · %d %s left" % [goals, "goal" if goals == 1 else "goals", left, "ball" if left == 1 else "balls"]
 	_sheet_detail.visible = not help_page
 	_sheet_note.hide()
+	_stars.hide()
 	_primary.text = "Back to play" if help_page else "Resume"
+	_primary_action = "resume"
 	_open_sheet("help" if help_page else "pause")
 	queue_redraw()
+
+func show_taunt(line: String, at: Vector2) -> void:
+	_taunt_label.text = line
+	_taunt.show()
+	var pos: Vector2 = at + Vector2(18, -40)
+	pos.x = clampf(pos.x, _safe_rect.position.x + 8.0, _safe_rect.end.x - 140.0)
+	pos.y = clampf(pos.y, _safe_rect.position.y + 8.0, _safe_rect.end.y - 48.0)
+	_taunt.global_position = pos
+	_taunt_until = Time.get_ticks_msec() + 1800
+
+func hide_taunt() -> void:
+	_taunt.hide()
+	_taunt_until = 0
+
+func _process(_delta: float) -> void:
+	if _taunt_until > 0 and Time.get_ticks_msec() >= _taunt_until:
+		hide_taunt()
 
 func _open_sheet(mode: String) -> void:
 	_sheet_mode = mode
 	_help_rows.visible = mode == "help"
 	_pause_tools.visible = mode == "pause"
+	_cup_block.visible = mode == "cup"
+	_stars.visible = mode == "intro" or mode == "set_result"
 	_secondary.visible = mode == "pause"
-	_bottom_gap.visible = mode != "result"
-	_shade.color = Color(0.015, 0.06, 0.05, 0.16 if mode == "result" else 0.80)
-	# Results leave Pause/Help/Sound reachable. Pitch input is still rejected by
-	# in_play_area and the round's RESULT state. Pause/help are full modal screens.
-	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE if mode == "result" else Control.MOUSE_FILTER_STOP
+	if mode == "pause":
+		_secondary.text = "Restart set"
+	_quiet.visible = mode == "intro" or mode == "set_result"
+	_bottom_gap.visible = mode != "result" and mode != "set_result"
+	var light: bool = mode == "result" or mode == "set_result"
+	_shade.color = Color(0.04, 0.07, 0.15, 0.16 if light else 0.80)
+	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE if light else Control.MOUSE_FILTER_STOP
 	_shade.show()
 	_sheet_scroll.scroll_vertical = 0
-	_set_toolbar_enabled(mode == "result")
+	_set_toolbar_enabled(light or mode == "cup" or mode == "intro")
+	if mode == "cup" or mode == "intro":
+		_pause.disabled = true
 	_request_sheet_fit()
 	_primary.grab_focus()
 
@@ -471,10 +677,29 @@ func _set_toolbar_enabled(enabled: bool) -> void:
 	_sound.disabled = not enabled
 
 func _primary_pressed() -> void:
-	if _sheet_mode == "result":
-		next_requested.emit()
+	match _primary_action:
+		"next":
+			next_requested.emit()
+		"start":
+			start_requested.emit()
+		"rematch":
+			rematch_requested.emit()
+		"next_rival":
+			next_rival_requested.emit()
+		"play_next":
+			play_next_requested.emit()
+		"equip":
+			equip_requested.emit()
+		"cup":
+			cup_requested.emit()
+		_:
+			resume_requested.emit()
+
+func _secondary_pressed() -> void:
+	if _sheet_mode == "set_result":
+		rematch_requested.emit()
 	else:
-		resume_requested.emit()
+		restart_requested.emit()
 
 func _draw() -> void:
 	if not holding:

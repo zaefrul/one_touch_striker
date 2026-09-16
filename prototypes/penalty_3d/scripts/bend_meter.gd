@@ -23,5 +23,5 @@ func _draw() -> void:
 	var tip: Vector2 = center + Vector2(amount * half_width, 0)
 	draw_line(center - Vector2(half_width, 0), center + Vector2(half_width, 0), UI.OUTLINE, 3.0, true)
 	draw_line(center - Vector2(0, 4), center + Vector2(0, 4), UI.MUTED, 1.0, true)
-	draw_line(center, tip, UI.BLUE if clean else UI.LIME, 4.0, true)
+	draw_line(center, tip, UI.BLUE if clean else UI.GOLD, 4.0, true)
 	draw_circle(tip, 3.5, UI.BLUE if clean else UI.TEXT)

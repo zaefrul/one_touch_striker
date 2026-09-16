@@ -1,15 +1,17 @@
 extends RefCounted
 
-# One palette and spacing scale for every arena screen.
-const INK: Color = Color("#082724")
-const SURFACE: Color = Color("#0b302c")
-const RAISED: Color = Color("#143f37")
-const OUTLINE: Color = Color("#365c50")
-const TEXT: Color = Color("#f3f6e9")
-const MUTED: Color = Color("#abc2b2")
-const LIME: Color = Color("#d9ff6a")
-const BLUE: Color = Color("#7edfff")
-const CORAL: Color = Color("#ff9f8e")
+# Floodlit Night tokens, matching lib/ui/theme.dart.
+const INK: Color = Color("#0a1226")
+const SURFACE: Color = Color("#111d3a")
+const RAISED: Color = Color("#182848")
+const OUTLINE: Color = Color("#2a3d66")
+const TEXT: Color = Color("#f4f1e8")
+const MUTED: Color = Color("#a8b3cc")
+const FAINT: Color = Color("#6b7898")
+const GOLD: Color = Color("#ffb340")
+const ON_GOLD: Color = Color("#1a1200")
+const BLUE: Color = Color("#5fd4ff")
+const CORAL: Color = Color("#ff6b6b")
 const EDGE: int = 16
 const GAP: int = 12
 const TOUCH: int = 48
@@ -41,9 +43,9 @@ static func make_theme() -> Theme:
 	result.set_color("font_disabled_color", "Button", MUTED)
 	result.set_color("icon_disabled_color", "Button", MUTED)
 	result.set_stylebox("normal", "Button", card(RAISED, 12))
-	result.set_stylebox("hover", "Button", card(Color("#205446"), 12))
-	result.set_stylebox("pressed", "Button", card(Color("#2b6350"), 12))
-	result.set_stylebox("hover_pressed", "Button", card(Color("#356f58"), 12))
+	result.set_stylebox("hover", "Button", card(Color("#243860"), 12))
+	result.set_stylebox("pressed", "Button", card(Color("#2d4570"), 12))
+	result.set_stylebox("hover_pressed", "Button", card(Color("#35507c"), 12))
 	result.set_stylebox("disabled", "Button", card(SURFACE, 12))
 	var focus: StyleBoxFlat = card(Color.TRANSPARENT, 0)
 	focus.border_color = BLUE
@@ -51,14 +53,14 @@ static func make_theme() -> Theme:
 	result.set_stylebox("focus", "Button", focus)
 
 	result.set_type_variation("ArenaPrimary", "Button")
-	_button_colors(result, "ArenaPrimary", INK)
+	_button_colors(result, "ArenaPrimary", ON_GOLD)
 	result.set_font_size("font_size", "ArenaPrimary", 17)
 	for state in ["normal", "hover", "pressed", "hover_pressed"]:
-		var color: Color = LIME
+		var color: Color = GOLD
 		if state == "hover":
-			color = Color("#ebffad")
+			color = Color("#ffc45c")
 		elif state == "pressed" or state == "hover_pressed":
-			color = Color("#b6d955")
+			color = Color("#e69a26")
 		var style: StyleBoxFlat = card(color, 14)
 		style.border_color = color
 		result.set_stylebox(state, "ArenaPrimary", style)

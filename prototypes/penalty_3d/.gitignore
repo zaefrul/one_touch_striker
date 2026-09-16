@@ -3,3 +3,5 @@
 export_credentials.cfg
 builds/
 *.tmp
+*.keystore
+*.jks

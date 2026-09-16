@@ -3,6 +3,17 @@ extends RefCounted
 
 const Shot = preload("res://scripts/shot_math.gd")
 
+static func apply_ball(material: ShaderMaterial, style: String) -> void:
+	if style == "cup":
+		material.set_shader_parameter("panel_color", Vector3(1.0, 0.702, 0.251))
+		material.set_shader_parameter("seam_color", Vector3(0.039, 0.071, 0.149))
+		material.set_shader_parameter("glow", 0.18)
+	else:
+		material.set_shader_parameter("panel_color", Vector3(0.96, 0.97, 0.89))
+		material.set_shader_parameter("seam_color", Vector3(0.035, 0.09, 0.10))
+		material.set_shader_parameter("glow", 0.0)
+
+
 static func material(color: Color, unshaded: bool = false) -> StandardMaterial3D:
 	var result: StandardMaterial3D = StandardMaterial3D.new()
 	result.albedo_color = color
@@ -67,10 +78,10 @@ static func build(root: Node3D) -> Dictionary:
 	var world: WorldEnvironment = WorldEnvironment.new()
 	var environment: Environment = Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color("#071b2a")
+	environment.background_color = Color("#0a1226")
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("#b9dcea")
-	environment.ambient_light_energy = 0.70
+	environment.ambient_light_color = Color("#d6f7ff")
+	environment.ambient_light_energy = 0.55
 	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	world.environment = environment
 	root.add_child(world)
@@ -82,11 +93,11 @@ static func build(root: Node3D) -> Dictionary:
 	light.shadow_enabled = false
 	root.add_child(light)
 
-	var grass_a: StandardMaterial3D = material(Color("#116747"))
-	var grass_b: StandardMaterial3D = material(Color("#0d5c42"))
-	var white: StandardMaterial3D = material(Color("#edf6db"))
+	var grass_a: StandardMaterial3D = material(Color("#1f8a4c"))
+	var grass_b: StandardMaterial3D = material(Color("#23985a"))
+	var white: StandardMaterial3D = material(Color("#e8f5e9"))
 	var dark: StandardMaterial3D = material(Color("#142d3e"))
-	var lime: StandardMaterial3D = material(Color("#d9ff6a"), true)
+	var gold: StandardMaterial3D = material(Color("#ffb340"), true)
 	for stripe in range(12):
 		box(root, Vector3(0, -0.06, -4.5 + stripe * 2.0), Vector3(19, 0.1, 2.0), grass_a if stripe % 2 == 0 else grass_b)
 	# Goal line, six-yard box and penalty-area boundaries.
@@ -99,7 +110,7 @@ static func build(root: Node3D) -> Dictionary:
 	box(root, Vector3(0, 0.008, 11), Vector3(0.18, 0.014, 0.18), white)
 	for side in [-1.0, 1.0]:
 		box(root, Vector3(side * 9.5, 0.6, 3), Vector3(0.4, 1.2, 20), dark)
-		box(root, Vector3(side * 9.27, 0.7, 3), Vector3(0.03, 0.08, 20), lime)
+		box(root, Vector3(side * 9.27, 0.7, 3), Vector3(0.03, 0.08, 20), gold)
 	for row in range(4):
 		box(root, Vector3(0, row * 0.50 + 0.25, -4.0 - row * 0.90), Vector3(21, 0.5, 0.85), dark)
 	_build_crowd(root)
@@ -114,11 +125,11 @@ static func build(root: Node3D) -> Dictionary:
 	_build_net(net_root)
 
 	var title: Label3D = Label3D.new()
-	title.text = "ONE-TOUCH  /  ARENA"
+	title.text = "RIVAL CUP"
 	title.font_size = 64
 	title.pixel_size = 0.008
 	title.position = Vector3(0, 3.4, -6)
-	title.modulate = Color("#d9ff6a")
+	title.modulate = Color("#ffb340")
 	root.add_child(title)
 
 	var camera: Camera3D = Camera3D.new()
@@ -133,6 +144,7 @@ static func build(root: Node3D) -> Dictionary:
 
 	var ball_material: ShaderMaterial = ShaderMaterial.new()
 	ball_material.shader = preload("res://shaders/ball.gdshader")
+	apply_ball(ball_material, "classic")
 	var ball: MeshInstance3D = sphere(root, Shot.BALL_RADIUS, ball_material)
 	ball.position = Shot.START
 	var shadow_mesh: CylinderMesh = CylinderMesh.new()
@@ -142,16 +154,25 @@ static func build(root: Node3D) -> Dictionary:
 	shadow_mesh.radial_segments = 24
 	var shadow: MeshInstance3D = MeshInstance3D.new()
 	shadow.mesh = shadow_mesh
-	shadow.material_override = material(Color("#0a402f"), true)
+	shadow.material_override = material(Color("#0a2018"), true)
 	root.add_child(shadow)
-	var aim_ring: MeshInstance3D = ring(root, Color("#d9ff6a"))
+	var aim_ring: MeshInstance3D = ring(root, Color("#ffb340"))
 	var dots: Array[MeshInstance3D] = []
 	var dot_material: StandardMaterial3D = material(Color("#bbdfb4"), true)
 	for _i in range(14):
 		var dot: MeshInstance3D = sphere(root, 0.022, dot_material)
 		dot.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		dots.append(dot)
-	return {"camera": camera, "ball": ball, "shadow": shadow, "net": net_root, "aim_ring": aim_ring, "dots": dots}
+	return {
+		"camera": camera,
+		"ball": ball,
+		"shadow": shadow,
+		"net": net_root,
+		"aim_ring": aim_ring,
+		"dots": dots,
+		"banner": title,
+		"ball_material": ball_material,
+	}
 
 static func _build_crowd(root: Node3D) -> void:
 	var mesh: SphereMesh = SphereMesh.new()
@@ -167,7 +188,7 @@ static func _build_crowd(root: Node3D) -> void:
 	crowd.use_colors = true
 	crowd.mesh = mesh
 	crowd.instance_count = 160
-	var palette: Array[Color] = [Color("#e9d3a3"), Color("#ef9267"), Color("#82bfd1"), Color("#d9ff6a")]
+	var palette: Array[Color] = [Color("#e9d3a3"), Color("#ef9267"), Color("#82bfd1"), Color("#ffb340")]
 	for i in range(160):
 		var row: int = int(i / 40)
 		var column: int = i % 40

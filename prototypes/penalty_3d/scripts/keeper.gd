@@ -1,16 +1,18 @@
 class_name PenaltyKeeper
 extends Node3D
 
+signal taunted(line: String, world_point: Vector3)
+
 const Shot = preload("res://scripts/shot_math.gd")
-const REACTION: float = 0.19
-const REACH: float = 1.55
-const DIVE_TIME: float = 0.34
 
 var committed: bool = false
 var capsules: Array[Dictionary] = []
+var _profile: RivalProfile
+var _kit: StandardMaterial3D
 var _from_x: float = 0.0
 var _target_x: float = 0.0
 var _root_x: float = 0.0
+var _idle_vx: float = 0.0
 var _lean: float = 0.0
 var _lift: float = 0.0
 var _extension: float = 0.0
@@ -19,23 +21,41 @@ var _target_lift: float = 0.0
 var _commit_age: float = 0.0
 var _recovery: float = 0.0
 var _saved: bool = false
+var _taunt_sent: bool = false
 
 func _ready() -> void:
-	var kit: StandardMaterial3D = _material(Color("#d9ff6a"))
+	_kit = _material(Color("#5fd4ff"))
 	var shorts: StandardMaterial3D = _material(Color("#142c36"))
 	var skin: StandardMaterial3D = _material(Color("#d79c75"))
 	var glove: StandardMaterial3D = _material(Color("#fff2d5"))
 	var boot: StandardMaterial3D = _material(Color("#10212d"))
 	# Indices remain fixed. Every visible capsule has a matching contact shape.
 	for spec in [
-		[0.25, kit], [0.17, skin],
-		[0.115, kit], [0.10, kit], [0.15, glove],
-		[0.115, kit], [0.10, kit], [0.15, glove],
-		[0.135, shorts], [0.10, kit], [0.12, boot],
-		[0.135, shorts], [0.10, kit], [0.12, boot],
+		[0.25, _kit], [0.17, skin],
+		[0.115, _kit], [0.10, _kit], [0.15, glove],
+		[0.115, _kit], [0.10, _kit], [0.15, glove],
+		[0.135, shorts], [0.10, _kit], [0.12, boot],
+		[0.135, shorts], [0.10, _kit], [0.12, boot],
 	]:
 		_add_part(float(spec[0]), spec[1])
+	if _profile == null:
+		configure(RivalProfile.at(1))
+	else:
+		_kit.albedo_color = _profile.kit
 	reset_pose(0.0)
+
+func configure(profile: RivalProfile) -> void:
+	_profile = profile
+	if _kit != null:
+		_kit.albedo_color = profile.kit
+
+func profile() -> RivalProfile:
+	return _profile
+
+func head_point() -> Vector3:
+	if capsules.is_empty():
+		return Vector3(_root_x, 1.69, 0.48)
+	return capsules[1]["a"]
 
 func _material(color: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
@@ -74,6 +94,23 @@ func _add_part(radius: float, material: StandardMaterial3D) -> void:
 		"radius": radius, "shaft": shaft, "end_a": end_a, "end_b": end_b,
 	})
 
+func _patrol_x(clock: float) -> float:
+	if _profile == null:
+		return sin(clock * 1.65) * 1.15
+	return _profile.offset(clock * 1.65) * 1.15
+
+func _reaction() -> float:
+	return 0.19 if _profile == null else _profile.reaction
+
+func _reach() -> float:
+	return 1.55 if _profile == null else _profile.reach
+
+func _dive_time() -> float:
+	return 0.34 if _profile == null else _profile.dive_time
+
+func _lift_max() -> float:
+	return 0.60 if _profile == null else _profile.lift_max
+
 func reset_pose(clock: float) -> void:
 	committed = false
 	_lean = 0.0
@@ -81,7 +118,9 @@ func reset_pose(clock: float) -> void:
 	_extension = 0.0
 	_recovery = 0.0
 	_saved = false
-	_root_x = sin(clock * 1.65) * 1.15
+	_taunt_sent = false
+	_root_x = _patrol_x(clock)
+	_idle_vx = 0.0
 	_write_pose(clock)
 	for part in capsules:
 		part["old_a"] = part["a"]
@@ -91,25 +130,33 @@ func reset_pose(clock: float) -> void:
 
 func advance(clock: float, flight_age: float, ball: Vector3, velocity: Vector3) -> void:
 	if not committed:
-		_root_x = sin(clock * 1.65) * 1.15
+		var previous_x: float = _root_x
+		_root_x = _patrol_x(clock)
+		_idle_vx = _root_x - previous_x
 		_lean = sin(clock * 3.3) * 0.055
 		_lift = 0.0
 		_extension = 0.0
-		if flight_age >= REACTION and velocity.z < -0.01:
+		if flight_age >= _reaction() and velocity.z < -0.01:
 			# Read only the ball's observed position and velocity after the delay.
 			# Never inspect the player's hidden final target, spin or technique.
 			var remaining: float = maxf(0.0, ball.z / -velocity.z)
 			var predicted_x: float = ball.x + velocity.x * remaining
 			var predicted_y: float = ball.y + velocity.y * remaining - 6.53 * remaining * remaining
 			_from_x = _root_x
-			_direction = -1.0 if predicted_x < _root_x else 1.0
-			_target_x = clampf(predicted_x - _direction * 0.48, _from_x - REACH, _from_x + REACH)
+			if _profile != null and _profile.commit_to_lean and absf(predicted_x - _root_x) < 0.9:
+				if absf(_idle_vx) < 0.001:
+					_direction = 1.0
+				else:
+					_direction = 1.0 if _idle_vx > 0.0 else -1.0
+			else:
+				_direction = -1.0 if predicted_x < _root_x else 1.0
+			_target_x = clampf(predicted_x - _direction * 0.48, _from_x - _reach(), _from_x + _reach())
 			_target_x = clampf(_target_x, -3.05, 3.05)
-			_target_lift = clampf(predicted_y - 1.20, -0.35, 0.60)
+			_target_lift = clampf(predicted_y - 1.20, -0.35, _lift_max())
 			_commit_age = flight_age
 			committed = true
 	if committed:
-		var p: float = clampf((flight_age - _commit_age) / DIVE_TIME, 0.0, 1.0)
+		var p: float = clampf((flight_age - _commit_age) / _dive_time(), 0.0, 1.0)
 		var ease: float = p * p * (3.0 - 2.0 * p)
 		_root_x = lerpf(_from_x, _target_x, ease)
 		_lean = -_direction * 0.95 * ease
@@ -120,6 +167,7 @@ func advance(clock: float, flight_age: float, ball: Vector3, velocity: Vector3) 
 func finish(saved: bool) -> void:
 	_saved = saved
 	_recovery = 0.0
+	_taunt_sent = false
 
 func recover(delta: float, clock: float) -> void:
 	_recovery += delta
@@ -127,6 +175,11 @@ func recover(delta: float, clock: float) -> void:
 	_lean = lerpf(_lean, 0.0, amount)
 	_lift = lerpf(_lift, 0.0, amount)
 	_extension = lerpf(_extension, 0.0, amount)
+	if _saved and not _taunt_sent and _recovery > 0.30:
+		_taunt_sent = true
+		if _profile != null and not _profile.taunts.is_empty():
+			var line: String = _profile.taunts[randi() % _profile.taunts.size()]
+			taunted.emit(line, head_point())
 	_write_pose(clock)
 
 func _point(local_point: Vector3) -> Vector3:
@@ -144,24 +197,27 @@ func _part(index: int, a: Vector3, b: Vector3) -> void:
 	part["b"] = _point(b)
 
 func _write_pose(clock: float) -> void:
-	var step: float = sin(clock * 8.0) * 0.06 * (1.0 - _extension)
+	var bounce: float = 0.06 if _profile == null else _profile.bounce
+	var crouch: float = 0.0 if _profile == null else _profile.crouch
+	var spread: float = 0.0 if _profile == null else _profile.arm_spread
+	var step: float = sin(clock * 8.0) * bounce * (1.0 - _extension)
 	var taunt: float = 0.0
 	if _saved and _recovery > 0.30:
 		taunt = sin(clampf((_recovery - 0.30) / 0.75, 0.0, 1.0) * PI) * 0.25
-	_part(0, Vector3(0, 0.91, 0), Vector3(0, 1.28, 0))
-	_part(1, Vector3(0, 1.69, 0), Vector3(0, 1.69, 0))
+	_part(0, Vector3(0, 0.91 - crouch, 0), Vector3(0, 1.28 - crouch, 0))
+	_part(1, Vector3(0, 1.69 - crouch, 0), Vector3(0, 1.69 - crouch, 0))
 	for side_index in range(2):
 		var side: float = -1.0 if side_index == 0 else 1.0
 		var arm_index: int = 2 + side_index * 3
-		var shoulder: Vector3 = Vector3(side * 0.24, 1.34, 0)
-		var elbow: Vector3 = Vector3(side * (0.43 + _extension * 0.08), 1.05 + _extension * 0.36 + taunt, 0.10)
-		var hand: Vector3 = Vector3(side * (0.48 + _extension * 0.28), 0.91 + _extension * 0.63 + taunt, 0.24)
+		var shoulder: Vector3 = Vector3(side * (0.24 + spread), 1.34 - crouch, 0)
+		var elbow: Vector3 = Vector3(side * (0.43 + spread + _extension * 0.08), 1.05 + _extension * 0.36 + taunt - crouch * 0.2, 0.10)
+		var hand: Vector3 = Vector3(side * (0.48 + spread + _extension * 0.28), 0.91 + _extension * 0.63 + taunt - crouch * 0.15, 0.24)
 		_part(arm_index, shoulder, elbow)
 		_part(arm_index + 1, elbow, hand)
 		_part(arm_index + 2, hand, hand)
 		var leg_index: int = 8 + side_index * 3
-		var hip: Vector3 = Vector3(side * 0.16, 0.82, 0)
-		var knee: Vector3 = Vector3(side * 0.23, 0.46 + side * step, 0.12)
+		var hip: Vector3 = Vector3(side * 0.16, 0.82 - crouch, 0)
+		var knee: Vector3 = Vector3(side * 0.23, 0.46 + side * step - crouch * 0.5, 0.12)
 		var ankle: Vector3 = Vector3(side * 0.30, 0.13, -side * step)
 		_part(leg_index, hip, knee)
 		_part(leg_index + 1, knee, ankle)

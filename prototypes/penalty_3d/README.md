@@ -1,11 +1,11 @@
-# One-Touch Striker: 3D Penalty Arena
+# One-Touch Striker: 3D Rival Cup
 
 A standalone Godot prototype for evaluating the same one-touch football loop in
-3D. It is based on the Flutter game's `feat/stage-challenges` branch. The Godot
-project is entirely inside this folder.
+3D. It is based on the Flutter game's Rival Cup keepers. The Godot project is
+entirely inside this folder.
 
-**Status: source reviewed only. No editor import, parser/analyzer, game run,
-automated test, export/build or GitHub workflow was executed for this prototype.**
+Headless import and a progression/effects smoke script have been run locally.
+Visual quality, audio mix and keeper difficulty still need a phone playtest.
 60 FPS is a playtest target, not a measured result.
 
 ## Open it locally
@@ -28,10 +28,21 @@ This is a separate Godot application. `flutter run` continues to open the existi
 Flutter game. To return to the campaign branch, use
 `git switch feat/stage-challenges`.
 
+Headless checks (from the repository root):
+
+```bash
+godot --headless --path prototypes/penalty_3d --import
+godot --headless --path prototypes/penalty_3d -s res://tests/cup_smoke.gd
+```
+
+`--quit-after N` counts iterations, not seconds, and booting into the cup map
+does not exercise gameplay. Use the smoke script above.
+
 ## Play
 
-The objective is **score 3 goals in 5 balls**. All five released shots count.
-The moving ring on the goal shows the initial direction and target height.
+The cup has **three five-ball rivals**. Score 3 goals to clear a keeper and
+unlock the next. A set always uses all five balls so extra stars stay earnable.
+Cleared rivals stay unlocked for rematch.
 
 | Input | Action |
 | --- | --- |
@@ -42,12 +53,22 @@ The moving ring on the goal shows the initial direction and target height.
 | Hold still and release in the blue timing sector | Knuckle shot |
 | Keep holding through several revolutions | Ring keeps rotating; every revolution has a fresh timing window |
 | Release early or late | Ordinary straight shot with timing feedback |
-| Next Ball / Play Again | Start immediately |
-| Pause icon / Escape | Pause or resume |
+| Next ball | Start the next attempt immediately |
+| Rematch / Next rival / Cup | Leave the current sheet; mid-set navigation records nothing |
+| Pause icon / Escape | Pause or resume during a set |
 | Help icon | Show controls |
 | Speaker icon | Toggle sound; the choice is saved for this prototype |
-| R | Restart all five balls |
-| Space on a result | Next ball / new set |
+| R during a set | Rematch the current rival (abandons an unfinished set) |
+| Space on a result | Activate the primary action |
+
+Stars: 3 goals → 1, 4 → 2, 5 → 3. The intro shows those thresholds under an
+empty star row. The set result shows earned stars and the next target
+("Score 3 to beat…", "Score 4 for two stars", "Score 5 for three stars",
+or "Perfect. Next: …" / "Cup complete").
+
+Win all three rivals to unlock the **Cup Ball**. The cup map previews it while
+locked. The first cup win offers **Equip Cup Ball**; later the reward card
+toggles Classic / Cup.
 
 The timing ring is the knuckle technique clock inherited from the Flutter game.
 Shot speed is fixed in this prototype. The ring never fires or locks a shot by
@@ -61,28 +82,37 @@ already in flight freezes during pause and resumes; cancellation consumes no bal
 
 ## Implemented scope
 
-- Genuine perspective 3D scene, fixed camera, pitch, goal frame and net.
-- Procedural keeper with footwork, delayed committed dive, recovery and a brief
-  save gesture. Geometry is an original stylised blockout for the prototype.
+- Genuine perspective 3D scene, fixed aiming camera, pitch, goal frame and net.
+- Three profile-driven keepers (Sweeper, Sentinel, Gambler) with readable patrols,
+  kit colours, stance, delayed committed dive, recovery and a save taunt.
+  Capsule radii and contact maths are unchanged; every visible capsule is still
+  the contact capsule.
 - Straight, adjustable curve/banana and deterministic knuckle paths.
 - A shared path function for trajectory preview and ball flight.
 - 3D swept ball contact against the posts and the keeper's visible body shapes.
 - Whole-ball goal-line crossing and separate goal, save, post, wide and over results.
-- Five-ball objective, session goal count and immediate retry.
-- Existing project kick/net/save/post/wide/cheer audio and quiet crowd ambience.
+- Five-ball sets, saved stars / wins / losses in `user://rival_cup.cfg`, rematch
+  of cleared rivals, and a derived cup win.
+- Signature goal titles from the confirmed crossing position, crowd stingers,
+  particles, a post-goal camera push and final-ball tension.
+- Classic / Cup Ball materials, a locked cup-map preview and an equip toggle.
+- Floodlit Night palette shared with the Flutter UI tokens.
+- Existing project kick/net/save/post/wide audio, plus fire_goal, victory, groan
+  and suspense; quiet crowd ambience.
 - Saved sound preference in Godot's separate `user://arena_settings.cfg`.
 - Reused meshes/materials, an instanced crowd and physics interpolation.
 - A shared UI theme, matching vector icons, responsive cards and safe-area margins.
 
-The twelve-stage campaign, stars, rivals, purchases and Flutter save data are
-outside this prototype. It has no backend, telemetry, advertising or purchases.
+Player-controlled chips against rushing keepers, the Flutter twelve-stage map
+and Flutter save migration are out of scope. The prototype has no backend,
+telemetry, advertising or purchases.
 
 ## UI layout
 
 The arena uses one compact objective card, five shot markers and a short bottom
 prompt. Check marks and crosses distinguish attempts without relying on colour.
 The cue disappears during ball flight. Per-shot results have one **Next ball**
-action; the final result has **Play again**. **Restart set** is in Pause.
+action. Set results have one primary action. **Restart set** is in Pause.
 
 All screens share 48-unit touch targets, 52-unit primary actions, 16-unit card
 corners and a centred column capped at 440 logical units. Godot containers own
@@ -93,7 +123,7 @@ the action buttons stay outside the scroll area.
 The toolbar and objective are excluded from shot input. Modal menus block pitch
 input and disable the toolbar's keyboard focus. Resuming a shot in flight also
 dismisses the pause overlay. The rotating technique ring is still drawn around
-the projected ball; the UI update does not change its timing or the shot rules.
+the projected ball.
 
 See [the UI layout reference](docs/ui-layout.svg) and
 [the layout notes](docs/UI_LAYOUT.md). The SVG is an authored static design
@@ -118,20 +148,25 @@ Sources checked while preparing the prototype:
 - [Flame 3D package status](https://pub.dev/packages/flame_3d)
 - [Godot physics interpolation](https://docs.godotengine.org/en/stable/tutorials/physics/interpolation/physics_interpolation_introduction.html)
 - [Godot 3D geometry helpers](https://docs.godotengine.org/en/stable/classes/class_geometry3d.html)
+- [Godot command-line](https://docs.godotengine.org/en/4.4/tutorials/editor/command_line_tutorial.html)
 
 ## Architecture and tuning
 
 | File | Responsibility |
 | --- | --- |
-| `scripts/main.gd` | Shot lifecycle, input ownership, round state, pause, audio |
+| `scripts/main.gd` | Cup screens, shot lifecycle, input, pause |
+| `scripts/rival.gd` | Sweeper / Sentinel / Gambler profiles |
+| `scripts/cup_progress.gd` | Stars, unlocks, wins/losses, equipped ball |
+| `scripts/keeper.gd` | Profile-driven pose and matching visible/contact shapes |
+| `scripts/goal_fx.gd` | Signature classification, crowd, particles, camera, tension |
 | `scripts/shot_math.gd` | Flight, curve/knuckle timing, swept capsule/frame contact |
-| `scripts/keeper.gd` | Committed keeper response and matching visible/contact shapes |
-| `scripts/arena_art.gd` | Arena meshes, camera, instanced crowd, preview geometry |
-| `scripts/hud.gd` | Container layout, safe areas, timing ring, results and menus |
-| `scripts/ui_theme.gd` | Shared palette, typography and button/panel styles |
-| `scripts/shot_track.gd`, `scripts/bend_meter.gd` | Compact progress and bend cues |
+| `scripts/arena_art.gd` | Arena meshes, camera, crowd, ball materials, rival banner |
+| `scripts/hud.gd` | Cup map, intro, results, safe areas, timing ring |
+| `scripts/ui_theme.gd` | Floodlit Night palette and button/panel styles |
+| `scripts/star_row.gd`, `scripts/shot_track.gd`, `scripts/bend_meter.gd` | Stars, progress, bend cues |
+| `tests/cup_smoke.gd` | Headless progression and effect hooks |
 | `ui/icons/` | Original matching SVG control and technique icons |
-| `shaders/ball.gdshader` | Procedural ball markings |
+| `shaders/ball.gdshader` | Classic / Cup Ball markings |
 
 Distances are world units interpreted as metres. Y is ball height; Z runs from
 the penalty spot at 11 toward the goal at 0. The full ball must cross Z = 0
@@ -144,10 +179,11 @@ Maximum sidespin shifts the goal-line destination by 2.65 units; it is never
 clamped into the goal. The knuckle sector is 0.55–0.73 seconds of every one-second
 hold cycle, matching `lib/game/knuckle_shot.dart`.
 
-Keeper reaction is 0.19 seconds, root travel is limited to 1.55 units from its
-commit position, and the dive transition lasts 0.34 seconds. Prediction reads
-observed ball position/velocity after release and does not read the player's
-locked target or spin. These are initial tuning values, not proven balance.
+Keeper reaction, reach, dive time and lift cap come from the rival profile.
+Prediction still reads observed ball position/velocity after release and does
+not read the player's locked target or spin. These are initial tuning values,
+not proven balance. A reduced Sweeper lift does not by itself make high shots
+safe: rotating the torso can still raise a glove into the path.
 
 The default physics tick is 60 Hz. Four collision substeps give 240 pose samples
 per second; display transforms interpolate between physics ticks. Sweeps find
@@ -157,7 +193,8 @@ rotational approximation needs close-contact device review. Mesh cylinders plus
 spherical end caps use the same segment endpoints and radii as contact checks.
 
 Result rebounds, the net pulse and crowd reactions are presentation after the
-attempt has been scored. They cannot change the result.
+attempt has been scored. They cannot change the result. Signature classification
+uses the confirmed scoring position captured at the goal-line crossing.
 
 ## Device export
 
@@ -180,8 +217,8 @@ prototype on phones.
 The scene, keeper geometry, UI and ball shader were authored for this prototype.
 No external character models, textures or image-generation service were used.
 
-The icon and seven WAV files are copies of existing repository blobs from
-commit `3e60054eca2a5df22b273b73e8b8ea4d512a0269`:
+The icon and WAV files are copies of existing repository blobs:
 
 - `icon.png`: existing iOS app icon.
-- `audio/`: the existing kick, net, save, post, wide, cheer and stadium WAV files.
+- `audio/`: kick, net, save, post, wide, cheer, stadium, fire_goal, victory,
+  groan and suspense from `assets/audio/`.

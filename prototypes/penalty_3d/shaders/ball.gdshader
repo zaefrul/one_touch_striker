@@ -1,6 +1,10 @@
 shader_type spatial;
 render_mode diffuse_burley, specular_schlick_ggx;
 
+uniform vec3 panel_color = vec3(0.96, 0.97, 0.89);
+uniform vec3 seam_color = vec3(0.035, 0.09, 0.10);
+uniform float glow = 0.0;
+
 varying vec3 local_point;
 
 void vertex() {
@@ -22,6 +26,7 @@ void fragment() {
 	float angle = atan(p.x, p.y);
 	float edge = cos(floor(0.5 + angle / sector) * sector - angle) * length(p);
 	float panel = smoothstep(0.34, 0.37, edge);
-	ALBEDO = mix(vec3(0.035, 0.09, 0.10), vec3(0.96, 0.97, 0.89), panel);
+	ALBEDO = mix(seam_color, panel_color, panel);
+	EMISSION = panel_color * glow;
 	ROUGHNESS = 0.68;
 }
