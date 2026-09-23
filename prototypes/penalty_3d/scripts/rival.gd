@@ -20,6 +20,8 @@ var rush_every: int = 0
 var rush_distance: float = 3.0
 var rush_time: float = 0.44
 var commit_to_lean: bool = false
+var is_champion: bool = false
+var dive_angle: float = 0.95
 
 static var _roster: Array[RivalProfile] = []
 
@@ -41,6 +43,8 @@ static func _ease(t: float) -> float:
 
 func offset(angle: float) -> float:
 	match id:
+		"captain":
+			return sin(angle * 0.75) * 0.34
 		"sentinel":
 			var cycle: float = fposmod(angle, TAU) / TAU
 			if cycle < 0.125:
@@ -133,3 +137,24 @@ static func rush_showdown() -> RivalProfile:
 
 func rushes_on(ball_index: int) -> bool:
 	return rush_every > 0 and ball_index >= 0 and ball_index % rush_every == 0
+
+static func champion() -> RivalProfile:
+	var profile: RivalProfile = _sentinel()
+	profile.id = "captain"
+	profile.title = "The Captain"
+	profile.kit = Color("#243968")
+	profile.weakness = "He remembers your corners. Watch his feet."
+	profile.intro_cue = "MAKE HIM GUESS"
+	profile.is_champion = true
+	profile.reaction = 0.18
+	profile.reach = 1.90
+	profile.dive_time = 0.30
+	profile.dive_angle = 1.18
+	profile.lift_max = 0.88
+	profile.crouch = 0.04
+	profile.arm_spread = 0.08
+	profile.bounce = 0.025
+	profile.rush_distance = 3.2
+	profile.rush_time = 0.40
+	profile.taunts = ["Same corner?", "Read that one.", "Change your plan."]
+	return profile

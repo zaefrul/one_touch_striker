@@ -9,7 +9,7 @@ this handoff. Previous APKs and reported smoke results describe the earlier cup.
 
 1. Win the existing Rival Cup. The cup map unlocks **Beat the Rush** and chip input.
 2. First entry offers a playable chip lesson. A moving upward cue demonstrates
-   the gesture; the lesson fixes a central aim and repeats without consuming
+   the gesture; the lesson starts with an editable central aim and repeats without consuming
    cup balls or changing records. **Skip lesson** starts the showdown.
 3. Play five balls against The Gambler. Blue ground arrows and a forward stance
    signal a rush on balls 1, 3 and 5. Balls 2 and 4 use his ordinary dive.
@@ -24,7 +24,8 @@ or removed on the cup map. It changes no shot or keeper attributes.
 
 | Input | Behaviour |
 | --- | --- |
-| Quick touch/release | Ordinary straight shot |
+| Drag on the goal | Choose aim without firing |
+| Quick touch/release below the goal | Ordinary straight shot |
 | Hold still | Ring keeps rotating; release in blue for knuckle |
 | First clear sideways drag | Curve/banana, same bend range as before |
 | First clear upward drag, after cup win | Chip; more distance adds lift and flight time |

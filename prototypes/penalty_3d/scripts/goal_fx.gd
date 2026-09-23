@@ -148,6 +148,11 @@ func play_miss() -> void:
 func play_set_win() -> void:
 	_victory.play()
 
+func play_highlight() -> void:
+	# Playback sound only: never restart scoring, particles or goal camera logic.
+	_cheer.pitch_scale = 0.94
+	_cheer.play()
+
 func set_tension(needed: int, balls_left: int) -> void:
 	_tension_needed = needed
 	_tension_left = balls_left

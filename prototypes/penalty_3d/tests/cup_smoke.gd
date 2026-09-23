@@ -118,6 +118,7 @@ func _test_arena() -> void:
 	var arena: Node = packed.instantiate()
 	arena.progress_path = path
 	arena.rush_progress_path = _tmp("cup_smoke_rush_unused")
+	arena.champion_progress_path = _tmp("cup_smoke_champion_unused")
 	root.add_child(arena)
 	await process_frame
 	await process_frame

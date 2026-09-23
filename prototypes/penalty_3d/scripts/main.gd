@@ -6,6 +6,8 @@ const KeeperRig = preload("res://scripts/keeper.gd")
 const HudScene = preload("res://scripts/hud.gd")
 const UI = preload("res://scripts/ui_theme.gd")
 const Gesture = preload("res://scripts/shot_gesture.gd")
+const Aim = preload("res://scripts/manual_aim.gd")
+const Replay = preload("res://scripts/shot_replay.gd")
 const NONE: int = -1
 const MOUSE: int = -2
 const SUBSTEPS: int = 4
@@ -18,11 +20,31 @@ const SOUNDS: Dictionary = {
 }
 
 enum Phase { READY, HOLD, FLIGHT, RESULT }
-enum Screen { CUP, INTRO, PLAY, RESULT }
-enum Mode { CUP, RUSH, LESSON }
+enum Screen { CUP, INTRO, PLAY, RESULT, REPLAY }
+enum Mode { CUP, RUSH, LESSON, CHAMPION, PRACTICE }
 
 @export var progress_path: String = "user://rival_cup.cfg"
 @export var rush_progress_path: String = "user://rush_showdown.cfg"
+@export var champion_progress_path: String = "user://champion_showdown.cfg"
+
+var _champion_progress: ChampionProgress
+var _champion_profile: RivalProfile = RivalProfile.champion()
+var _champion_brain: ChampionBrain = ChampionBrain.new()
+var _practice_brain: ChampionBrain = ChampionBrain.new()
+var _aim_owner: int = NONE
+var _replay: ArenaShotReplay = Replay.new()
+var _replay_pending: bool = false
+var _replay_age: float = 0.0
+var _replay_last_clock: float = 0.0
+var _replay_count: int = 0
+var _exceptional_shown: bool = false
+var _replay_return: Screen = Screen.PLAY
+var _replay_live_pose: Dictionary = {}
+var _replay_live_ball: Vector3
+var _replay_live_rotation: Quaternion
+var _replay_home: Transform3D
+var _replay_fov: float = 42.0
+var _replay_net_strength: float = 0.15
 
 var _mode: Mode = Mode.CUP
 var _gesture: ArenaShotGesture = Gesture.new()
@@ -42,7 +64,7 @@ var _clock: float = 0.0
 var _owner: int = NONE
 var _touch_origin: Vector2 = Vector2.ZERO
 var _hold_started: int = 0
-var _aim: Vector2 = Vector2.ZERO
+var _aim: Vector2 = Aim.DEFAULT
 var _locked_aim: Vector2 = Vector2.ZERO
 var _spin: float = 0.0
 var _curve_committed: bool = false
@@ -77,6 +99,9 @@ func _ready() -> void:
 	_progress.load_from_disk()
 	_rush_progress = RushProgress.new(rush_progress_path)
 	_rush_progress.load_from_disk()
+	_champion_progress = ChampionProgress.new(champion_progress_path)
+	_champion_progress.load_from_disk()
+	_champion_brain.set_memory(_champion_progress.recent_lanes)
 	_art = Arena.build(self)
 	_ball = _art["ball"]
 	_ball_material = _art["ball_material"]
@@ -85,6 +110,7 @@ func _ready() -> void:
 	_rush_cue = _art["rush_cue"]
 	var aim_ring: MeshInstance3D = _art["aim_ring"]
 	aim_ring.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_art["target_ring"].physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	for dot in _art["dots"]:
 		dot.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	_keeper = KeeperRig.new()
@@ -113,6 +139,10 @@ func _ready() -> void:
 	_hud.skip_lesson_requested.connect(_skip_lesson)
 	_hud.rush_start_requested.connect(_start_rush)
 	_hud.badge_toggled.connect(_toggle_badge)
+	_hud.champion_requested.connect(_show_champion_intro)
+	_hud.champion_start_requested.connect(_start_champion)
+	_hud.practice_requested.connect(_start_practice)
+	_hud.skip_replay_requested.connect(_skip_replay)
 	_fx = ArenaGoalFx.new()
 	add_child(_fx)
 	_fx.setup(_camera, self)
@@ -154,7 +184,15 @@ func _play(key: String) -> void:
 		player.play()
 
 func current_profile() -> RivalProfile:
+	if _mode == Mode.CHAMPION or _mode == Mode.PRACTICE:
+		return _champion_profile
 	return RivalProfile.at(_rival_index) if _mode == Mode.CUP else _rush_profile
+
+func _active_brain() -> ChampionBrain:
+	return _practice_brain if _mode == Mode.PRACTICE else _champion_brain
+
+func _required_goals() -> int:
+	return ChampionProgress.REQUIRED_GOALS if _mode in [Mode.CHAMPION, Mode.PRACTICE] else 3
 
 func progress() -> CupProgress:
 	return _progress
@@ -179,6 +217,8 @@ func is_celebrating() -> bool:
 
 func _physics_process(delta: float) -> void:
 	if _paused:
+		return
+	if _screen == Screen.REPLAY:
 		return
 	if _fx != null:
 		_fx.advance(delta)
@@ -214,12 +254,18 @@ func _physics_process(delta: float) -> void:
 	if _phase == Phase.RESULT and _outcome == "GOAL":
 		pulse = sin(_result_age * 22.0) * exp(-_result_age * 4.0) * _fx.net_strength
 	net.scale.z = 1.0 + pulse
+	_capture_shot()
+	if _replay_pending and _result_age >= 0.26:
+		_start_replay()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if not _paused and _screen == Screen.REPLAY:
+		# Sample recorded poses at display rate for smooth slow-motion playback.
+		_advance_replay(delta)
+		return
 	if _paused or _screen != Screen.PLAY:
 		return
 	if _phase == Phase.READY:
-		_aim = _current_aim(_clock + Engine.get_physics_interpolation_fraction() / 60.0)
 		_hud.update_guide(_camera.unproject_position(Shot.START), true)
 		_preview(_aim, 0.0, false)
 	elif _phase == Phase.HOLD:
@@ -231,20 +277,26 @@ func _process(_delta: float) -> void:
 
 func _preview(aim: Vector2, spin: float, knuckle: bool, loft: float = 0.0) -> void:
 	var dots: Array = _art["dots"]
+	var master: bool = _mode == Mode.CHAMPION
 	for i in range(dots.size()):
 		var dot: MeshInstance3D = dots[i]
-		dot.visible = true
+		dot.visible = not master or i < 4
 		dot.position = Shot.position_at(aim, spin, knuckle, (i + 1.0) / (dots.size() + 1.0), loft)
 	var marker: MeshInstance3D = _art["aim_ring"]
-	marker.visible = true
+	marker.visible = not master
 	var target: Vector3 = Shot.position_at(aim, spin, knuckle, 1.0, loft)
 	marker.position = target + Vector3(0, 0, 0.02)
 	var material: StandardMaterial3D = marker.material_override as StandardMaterial3D
 	material.albedo_color = UI.GOLD if Shot.inside_goal(target) else UI.CORAL
+	# White reticle is chosen aim, never the secret landing point in master mode.
+	var selected: MeshInstance3D = _art["target_ring"]
+	selected.visible = true
+	selected.position = Vector3(aim.x, aim.y, 0.04)
 
 func _hide_preview() -> void:
 	var marker: MeshInstance3D = _art["aim_ring"]
 	marker.hide()
+	_art["target_ring"].hide()
 	for dot in _art["dots"]:
 		dot.hide()
 
@@ -252,6 +304,29 @@ func _held_seconds() -> float:
 	return maxf(0.0, (Time.get_ticks_usec() - _hold_started) / 1000000.0)
 
 func _input(event: InputEvent) -> void:
+	# An aim finger and a shot finger have separate ownership. Releasing the
+	# reticle never shoots; crossing the goal with a shot drag never changes mode.
+	if _aim_owner != NONE:
+		if event is InputEventScreenTouch and event.index == _aim_owner:
+			if event.canceled or not event.pressed:
+				if not event.canceled:
+					_move_aim(event.position)
+				_aim_owner = NONE
+				get_viewport().set_input_as_handled()
+				return
+		elif event is InputEventScreenDrag and event.index == _aim_owner:
+			_move_aim(event.position)
+			get_viewport().set_input_as_handled()
+			return
+		elif _aim_owner == MOUSE and event is InputEventMouseMotion:
+			_move_aim(event.position)
+			get_viewport().set_input_as_handled()
+			return
+		elif _aim_owner == MOUSE and event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+			_move_aim(event.position)
+			_aim_owner = NONE
+			get_viewport().set_input_as_handled()
+			return
 	if _owner == NONE:
 		return
 	if event is InputEventScreenTouch and event.index == _owner:
@@ -278,13 +353,17 @@ func _unhandled_input(event: InputEvent) -> void:
 				return
 			if _paused:
 				_resume_round()
+			elif _screen == Screen.REPLAY:
+				_skip_replay()
 			else:
 				_pause_round()
 		elif event.keycode == KEY_R:
-			if _screen == Screen.PLAY or _screen == Screen.RESULT:
+			if _screen in [Screen.PLAY, Screen.RESULT, Screen.REPLAY]:
 				_rematch()
 		elif event.keycode == KEY_SPACE and not _paused:
-			if _screen == Screen.PLAY and _phase == Phase.RESULT:
+			if _screen == Screen.REPLAY:
+				_skip_replay()
+			elif _screen == Screen.PLAY and _phase == Phase.RESULT:
 				_next_ball()
 			elif _screen == Screen.INTRO:
 				_begin_play()
@@ -293,14 +372,36 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif _screen == Screen.RESULT:
 				_hud._primary_pressed()
 		return
-	if _paused or _screen != Screen.PLAY or _phase != Phase.READY or _owner != NONE:
+	if _paused or _screen != Screen.PLAY or _phase not in [Phase.READY, Phase.HOLD]:
 		return
 	if event is InputEventScreenTouch and event.pressed and not event.canceled:
-		_begin_pointer(event.index, event.position)
+		_begin_control(event.index, event.position)
 	elif event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		_begin_pointer(MOUSE, event.position)
+		_begin_control(MOUSE, event.position)
+
+func _begin_control(pointer: int, point: Vector2) -> void:
+	if _paused or _screen != Screen.PLAY or _phase not in [Phase.READY, Phase.HOLD]:
+		return
+	if not _hud.in_play_area(point):
+		return
+	if Aim.screen_region(_camera).has_point(point):
+		if _aim_owner == NONE and pointer != _owner:
+			_aim_owner = pointer
+			_move_aim(point)
+			get_viewport().set_input_as_handled()
+	elif _owner == NONE and pointer != _aim_owner and _phase == Phase.READY:
+		_begin_pointer(pointer, point)
+
+func _move_aim(point: Vector2) -> void:
+	if _paused or _screen != Screen.PLAY or _phase not in [Phase.READY, Phase.HOLD]:
+		return
+	_aim = Aim.from_screen(_camera, point, _aim)
+	if _phase == Phase.HOLD:
+		_locked_aim = _aim
 
 func _begin_pointer(pointer: int, point: Vector2) -> void:
+	if _paused or _screen != Screen.PLAY or _phase != Phase.READY or _owner != NONE:
+		return
 	if not _hud.in_play_area(point):
 		return
 	_owner = pointer
@@ -333,12 +434,15 @@ func _end_pointer(point: Vector2) -> void:
 	_timing = Shot.timing_label(seconds, _gesture.committed())
 	_shot_label = Shot.label_for(_spin, _knuckle, _loft)
 	_owner = NONE
+	_aim_owner = NONE
 	_flight_age = 0.0
 	_ball_position = Shot.START
 	_flight_duration = Shot.duration_for(_loft)
 	_velocity = (Shot.position_at(_locked_aim, _spin, _knuckle, 0.001, _loft) - Shot.START) / (0.001 * _flight_duration)
 	_shots += 1
 	_phase = Phase.FLIGHT
+	_replay.begin(_ball_position, _ball.quaternion, _keeper.capture_pose())
+	_replay_last_clock = _clock
 	_rush_cue.hide()
 	_hide_preview()
 	_hud.show_flight()
@@ -346,6 +450,7 @@ func _end_pointer(point: Vector2) -> void:
 
 func _cancel_hold() -> void:
 	_owner = NONE
+	_aim_owner = NONE
 	if _phase == Phase.HOLD:
 		_phase = Phase.READY
 		_gesture.reset()
@@ -384,10 +489,13 @@ func _step_flight(delta: float) -> void:
 func _resolve(outcome: String) -> void:
 	if _phase != Phase.FLIGHT:
 		return
+	_capture_shot()
 	_phase = Phase.RESULT
 	_outcome = outcome
 	var score_pos: Vector3 = _ball_position
 	_outcomes.append(outcome)
+	if _mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		_active_brain().note_shot(score_pos.x)
 	_result_age = 0.0
 	_keeper.finish(outcome == "SAVED")
 	match outcome:
@@ -416,6 +524,13 @@ func _resolve(outcome: String) -> void:
 		_lesson_success = outcome == "GOAL" and _rush_chips > 0
 		if _lesson_success:
 			_rush_progress.mark_lesson_seen()
+	var clincher: bool = outcome == "GOAL" and _outcomes.count("GOAL") == _required_goals()
+	var exceptional: bool = outcome == "GOAL" and (last_signature.get("placement", "") == "corner" or last_signature.get("technique", "") in ["banana", "knuckle"] or _rush_clear)
+	_replay_pending = _mode != Mode.LESSON and _replay.recording and _replay_count < 2 and (clincher or (exceptional and not _exceptional_shown))
+	if _replay_pending and exceptional:
+		_exceptional_shown = true
+	if not _replay_pending:
+		_replay.finish()
 	_hud.set_score(_outcomes)
 	_refresh_tension()
 	_show_result()
@@ -426,6 +541,9 @@ func _show_result() -> void:
 		return
 	if _outcomes.size() >= 5:
 		_finish_set()
+		return
+	if _replay_pending:
+		_hud.show_flight()
 		return
 	var technique: String = last_signature.get("detail", "") if _outcome == "GOAL" and not last_signature.is_empty() else (_shot_label.capitalize() if _gesture.committed() or _curve_committed else _timing)
 	var title: String = last_signature.get("title", "") if _outcome == "GOAL" else ""
@@ -440,7 +558,11 @@ func _finish_set() -> void:
 	# Rendering/resuming results never records the same completed set again.
 	if not _set_recorded:
 		_set_recorded = true
-		if _mode == Mode.RUSH:
+		if _mode == Mode.CHAMPION:
+			_last_record = _champion_progress.record_set(_outcomes, _champion_brain.memory())
+		elif _mode == Mode.PRACTICE:
+			_last_record = {"won": goals >= _required_goals()}
+		elif _mode == Mode.RUSH:
 			_last_record = _rush_progress.record_set(_outcomes, _rush_chips)
 			_hud.set_badge(_rush_progress.badge_equipped)
 		else:
@@ -448,10 +570,16 @@ func _finish_set() -> void:
 		if bool(_last_record.get("won", false)):
 			_fx.play_set_win()
 	_screen = Screen.RESULT
-	_render_completed_result()
+	if _replay_pending:
+		_hud.show_flight()
+	else:
+		_render_completed_result()
 
 func _render_completed_result() -> void:
 	var goals: int = _outcomes.count("GOAL")
+	if _mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		_hud.show_champion_result(goals, _champion_progress, _mode == Mode.PRACTICE)
+		return
 	if _mode == Mode.RUSH:
 		_hud.show_rush_result(goals, _rush_chips, _rush_progress.next_target(goals, _rush_chips), bool(_last_record.get("first_badge", false)))
 		return
@@ -480,6 +608,9 @@ func _step_result(delta: float) -> void:
 func _next_ball() -> void:
 	if _paused:
 		return
+	if _screen == Screen.REPLAY:
+		_skip_replay()
+		return
 	_fx.cancel()
 	if _screen == Screen.RESULT:
 		_open_cup()
@@ -495,9 +626,11 @@ func _next_ball() -> void:
 	_ready_ball()
 
 func _ready_ball() -> void:
+	_cancel_replay()
 	_fx.cancel()
 	_phase = Phase.READY
 	_owner = NONE
+	_aim_owner = NONE
 	_gesture.reset()
 	_loft = 0.0
 	_rush_clear = false
@@ -515,7 +648,11 @@ func _ready_ball() -> void:
 	var shadow: MeshInstance3D = _art["shadow"]
 	shadow.position = Vector3(Shot.START.x, 0.012, Shot.START.z)
 	shadow.scale = Vector3.ONE
-	_keeper.prepare_shot(_clock, _mode == Mode.LESSON or current_profile().rushes_on(_outcomes.size()))
+	var will_rush: bool = _mode == Mode.LESSON or current_profile().rushes_on(_outcomes.size())
+	if _mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		_keeper.set_guard_bias(_active_brain().guard_bias())
+		will_rush = _active_brain().rushes_on(_outcomes.size())
+	_keeper.prepare_shot(_clock, will_rush)
 	_update_rush_cue()
 	var net: Node3D = _art["net"]
 	net.scale = Vector3.ONE
@@ -523,7 +660,6 @@ func _ready_ball() -> void:
 	_hud.show_ready()
 	_hud.set_score(_outcomes)
 	_refresh_tension()
-	_aim = _current_aim(_clock)
 	_preview(_aim, 0.0, false)
 	reset_physics_interpolation()
 
@@ -534,11 +670,18 @@ func _start_set(rival_index: int) -> void:
 	_start_attempt(Mode.CUP)
 
 func _start_attempt(mode: Mode) -> void:
+	_cancel_replay()
 	_cancel_hold()
 	_fx.cancel()
 	_paused = false
 	_pause_audio(false)
 	_mode = mode
+	_replay_count = 0
+	_exceptional_shown = false
+	if mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		if mode == Mode.PRACTICE:
+			_practice_brain.set_memory([])
+		_active_brain().begin_set()
 	_screen = Screen.PLAY
 	_clock = 0.0
 	_shots = 0
@@ -551,18 +694,20 @@ func _start_attempt(mode: Mode) -> void:
 	for player in _audio.values():
 		player.stop()
 	_keeper.configure(current_profile())
+	if mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		_keeper.set_guard_bias(_active_brain().guard_bias(), true)
 	_apply_equipped_ball()
-	_set_banner(current_profile().title.to_upper() if mode == Mode.CUP else "BEAT THE RUSH")
+	var title: String = current_profile().title if mode == Mode.CUP else "Beat the Rush"
+	if mode in [Mode.CHAMPION, Mode.PRACTICE]:
+		title = "Captain Practice" if mode == Mode.PRACTICE else "The Captain"
+	_set_banner(title.to_upper())
 	_hud.set_lesson(mode == Mode.LESSON)
+	_hud.set_goal_target(_required_goals())
 	_hud.set_chip_unlocked(_progress.cup_won())
 	_hud.set_badge(_rush_progress.badge_equipped)
 	_hud.set_play_hud(true)
-	_hud.set_rival(current_profile().title if mode == Mode.CUP else "Beat the Rush")
+	_hud.set_rival(title)
 	_ready_ball()
-
-func _current_aim(clock: float) -> Vector2:
-	# The free lesson holds a readable central target; the showdown restores aiming.
-	return Vector2(0.0, 1.05) if _mode == Mode.LESSON else Shot.aim_at(clock)
 
 func _update_rush_cue() -> void:
 	_rush_cue.visible = not _paused and _screen == Screen.PLAY and (_phase == Phase.READY or _phase == Phase.HOLD) and _keeper.rush_armed()
@@ -574,6 +719,7 @@ func _update_rush_cue() -> void:
 func _show_intro(index: int) -> void:
 	if not _progress.is_unlocked(index):
 		return
+	_cancel_replay()
 	_cancel_hold()
 	_fx.cancel()
 	_paused = false
@@ -597,6 +743,7 @@ func _show_intro(index: int) -> void:
 	_hud.show_intro(current_profile())
 
 func _open_cup() -> void:
+	_cancel_replay()
 	_cancel_hold()
 	_fx.cancel()
 	_mode = Mode.CUP
@@ -620,10 +767,14 @@ func _open_cup() -> void:
 	_hud.hide_taunt()
 	_hud.set_score(_outcomes)
 	_hud.set_tension(0)
-	_hud.show_cup(_progress, _rush_progress)
+	_hud.show_cup(_progress, _rush_progress, _champion_progress)
 
 func _begin_play() -> void:
-	if _mode == Mode.LESSON:
+	if _mode == Mode.CHAMPION:
+		_start_champion()
+	elif _mode == Mode.PRACTICE:
+		_start_practice()
+	elif _mode == Mode.LESSON:
 		_start_lesson()
 	elif _mode == Mode.RUSH:
 		_start_rush()
@@ -633,6 +784,7 @@ func _begin_play() -> void:
 func _show_rush_intro() -> void:
 	if not _progress.cup_won():
 		return
+	_cancel_replay()
 	_cancel_hold()
 	_fx.cancel()
 	_paused = false
@@ -662,6 +814,7 @@ func _start_rush() -> void:
 func _start_lesson() -> void:
 	if not _progress.cup_won():
 		return
+	_aim = Aim.DEFAULT
 	_start_attempt(Mode.LESSON)
 
 func _skip_lesson() -> void:
@@ -673,10 +826,13 @@ func _skip_lesson() -> void:
 func _toggle_badge() -> void:
 	_rush_progress.toggle_badge()
 	_hud.set_badge(_rush_progress.badge_equipped)
-	_hud.show_cup(_progress, _rush_progress)
+	_hud.show_cup(_progress, _rush_progress, _champion_progress)
 
 func _play_next() -> void:
-	_show_intro(_progress.next_play_index())
+	if _progress.cup_won():
+		_show_champion_intro()
+	else:
+		_show_intro(_progress.next_play_index())
 
 func _choose_rival(index: int) -> void:
 	_show_intro(index)
@@ -701,7 +857,7 @@ func _toggle_reward() -> void:
 	if not _progress.cup_won():
 		return
 	_progress.equip_ball("classic" if _progress.ball == "cup" else "cup")
-	_hud.show_cup(_progress, _rush_progress)
+	_hud.show_cup(_progress, _rush_progress, _champion_progress)
 
 func _apply_equipped_ball() -> void:
 	Arena.apply_ball(_ball_material, _progress.ball)
@@ -716,7 +872,7 @@ func _refresh_tension() -> void:
 		return
 	var goals: int = _outcomes.count("GOAL")
 	var balls_left: int = 5 - _outcomes.size()
-	var needed: int = 3 - goals
+	var needed: int = _required_goals() - goals
 	_fx.set_tension(needed, balls_left)
 	_hud.set_tension(_fx.tension_level)
 
@@ -751,24 +907,31 @@ func _pause_round() -> void:
 	_hud.show_menu(false)
 
 func _show_help() -> void:
-	if _screen == Screen.PLAY or _screen == Screen.RESULT:
+	if _screen in [Screen.PLAY, Screen.RESULT, Screen.REPLAY]:
 		_pause_round()
 	_hud.show_menu(true)
 
 func _resume_round() -> void:
 	if _screen == Screen.CUP:
-		_hud.show_cup(_progress, _rush_progress)
+		_hud.show_cup(_progress, _rush_progress, _champion_progress)
 		return
 	if _screen == Screen.INTRO:
 		if _mode == Mode.CUP:
 			_hud.show_intro(current_profile())
+		elif _mode == Mode.CHAMPION:
+			_hud.show_champion_intro(_champion_progress)
 		else:
 			_hud.show_rush_intro(_mode == Mode.LESSON, _rush_progress)
 		return
 	_paused = false
 	_pause_audio(false)
-	if _screen == Screen.RESULT:
-		_render_completed_result()
+	if _screen == Screen.REPLAY:
+		_hud.show_replay(last_signature.get("title", "Goal!"))
+	elif _screen == Screen.RESULT:
+		if _replay_pending:
+			_hud.show_flight()
+		else:
+			_render_completed_result()
 	elif _phase == Phase.RESULT:
 		_show_result()
 	elif _phase == Phase.READY:
@@ -798,7 +961,140 @@ func _notification(what: int) -> void:
 			return
 		if _paused:
 			_resume_round()
+		elif _screen == Screen.REPLAY:
+			_skip_replay()
 		elif _screen == Screen.INTRO or _screen == Screen.RESULT:
 			_open_cup()
 		else:
 			_pause_round()
+
+func _show_champion_intro() -> void:
+	if not _progress.cup_won():
+		return
+	_cancel_replay()
+	_cancel_hold()
+	_fx.cancel()
+	_paused = false
+	_pause_audio(false)
+	_mode = Mode.CHAMPION
+	_screen = Screen.INTRO
+	_phase = Phase.READY
+	_outcomes.clear()
+	_rush_cue.hide()
+	_hud.set_lesson(false)
+	_hud.set_goal_target(4)
+	_hud.set_chip_unlocked(true)
+	_keeper.configure(_champion_profile)
+	_keeper.set_guard_bias(_champion_brain.guard_bias(), true)
+	_keeper.reset_pose(_clock)
+	_ball_position = Shot.START
+	_ball.position = Shot.START
+	_apply_equipped_ball()
+	_set_banner("THE CAPTAIN")
+	_hide_preview()
+	_hud.hide_taunt()
+	_hud.show_champion_intro(_champion_progress)
+
+func _start_champion() -> void:
+	if _progress.cup_won():
+		_start_attempt(Mode.CHAMPION)
+
+func _start_practice() -> void:
+	if _progress.cup_won():
+		_start_attempt(Mode.PRACTICE)
+
+func _capture_shot() -> void:
+	if _replay.recording and _clock > _replay_last_clock:
+		_replay.capture(_clock - _replay_last_clock, _ball_position, _ball.quaternion, _keeper.capture_pose(), _art["net"].scale.z)
+		_replay_last_clock = _clock
+
+func _start_replay() -> void:
+	_replay_pending = false
+	if not _replay.finish():
+		if _screen == Screen.RESULT:
+			_render_completed_result()
+		else:
+			_show_result()
+		return
+	_replay_return = _screen
+	_replay_live_ball = _ball_position
+	_replay_live_rotation = _ball.quaternion
+	_replay_live_pose = _keeper.capture_pose()
+	_replay_net_strength = _fx.net_strength
+	_fx.cancel()
+	_replay_home = _camera.global_transform
+	_replay_fov = _camera.fov
+	_replay_age = 0.0
+	_replay_count += 1
+	_screen = Screen.REPLAY
+	_aim_owner = NONE
+	_owner = NONE
+	_hide_preview()
+	_rush_cue.hide()
+	_hud.hide_taunt()
+	_hud.show_replay(last_signature.get("title", "Goal!"))
+	var side: float = -1.0 if _locked_aim.x < 0.0 else 1.0
+	_camera.position = Vector3(side * 5.2, 2.4, 1.4)
+	_camera.fov = 58.0
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_ball.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_keeper.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	_fx.play_highlight()
+	_advance_replay(0.0)
+	reset_physics_interpolation()
+
+func _advance_replay(delta: float) -> void:
+	_replay_age += delta
+	var frame: Dictionary = _replay.sample(_replay_age / Replay.DURATION)
+	if not frame.is_empty():
+		_ball.position = frame["ball"]
+		_ball.quaternion = frame["rotation"]
+		_keeper.apply_recorded_pose(frame["keeper_a"], frame["keeper_b"], frame["weight"])
+		_art["net"].scale.z = frame["net"]
+		_camera.look_at(_ball.position.lerp(Vector3(0.0, 1.0, 0.0), 0.12))
+		var shadow: MeshInstance3D = _art["shadow"]
+		shadow.position = Vector3(_ball.position.x, 0.012, _ball.position.z)
+		var scale_factor: float = clampf(1.0 - _ball.position.y * 0.18, 0.45, 1.0)
+		shadow.scale = Vector3(scale_factor, 1.0, scale_factor)
+	if _replay_age >= Replay.DURATION:
+		_skip_replay()
+
+func _restore_replay_view() -> void:
+	_camera.global_transform = _replay_home
+	_camera.fov = _replay_fov
+	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	_ball.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	_keeper.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_INHERIT
+	_ball_position = _replay_live_ball
+	_ball.position = _replay_live_ball
+	_ball.quaternion = _replay_live_rotation
+	_keeper.apply_recorded_pose(_replay_live_pose, _replay_live_pose, 0.0)
+	_fx.net_strength = _replay_net_strength
+	_art["net"].scale.z = 1.0 + sin(_result_age * 22.0) * exp(-_result_age * 4.0) * _fx.net_strength
+	var shadow: MeshInstance3D = _art["shadow"]
+	shadow.position = Vector3(_ball_position.x, 0.012, _ball_position.z)
+	var scale_factor: float = clampf(1.0 - _ball_position.y * 0.18, 0.45, 1.0)
+	shadow.scale = Vector3(scale_factor, 1.0, scale_factor)
+	_hud.set_play_hud(true)
+	reset_physics_interpolation()
+
+func _skip_replay() -> void:
+	if _screen != Screen.REPLAY or _paused:
+		return
+	_restore_replay_view()
+	_screen = _replay_return
+	_replay.clear()
+	_refresh_tension()
+	if _screen == Screen.RESULT:
+		_fx.set_tension(0, 0)
+		_hud.set_tension(0)
+		_render_completed_result()
+	else:
+		_show_result()
+
+func _cancel_replay() -> void:
+	_replay_pending = false
+	if _screen == Screen.REPLAY:
+		_restore_replay_view()
+		_screen = _replay_return
+	_replay.clear()

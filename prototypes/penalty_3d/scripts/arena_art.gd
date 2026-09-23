@@ -157,6 +157,8 @@ static func build(root: Node3D) -> Dictionary:
 	shadow.material_override = material(Color("#0a2018"), true)
 	root.add_child(shadow)
 	var aim_ring: MeshInstance3D = ring(root, Color("#ffb340"))
+	var target_ring: MeshInstance3D = ring(root, Color("#f4f1e8"))
+	target_ring.scale = Vector3.ONE * 0.70
 	var dots: Array[MeshInstance3D] = []
 	var dot_material: StandardMaterial3D = material(Color("#bbdfb4"), true)
 	for _i in range(14):
@@ -169,6 +171,7 @@ static func build(root: Node3D) -> Dictionary:
 		"shadow": shadow,
 		"net": net_root,
 		"aim_ring": aim_ring,
+		"target_ring": target_ring,
 		"dots": dots,
 		"banner": title,
 		"ball_material": ball_material,

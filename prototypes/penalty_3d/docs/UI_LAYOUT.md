@@ -44,7 +44,7 @@ timing ring and the chip lesson cue follow the ball's projected position.
 - **Pause:** a centred sheet with round status, controls/audio, Resume and Restart.
 - **Help:** three illustrated technique rows; a fourth chip row appears after
   cup completion. **Back to play** stays outside the scroll area.
-- **Chip lesson:** one central aim, an animated upward drag cue and **Chip the rush**.
+- **Chip lesson:** an editable central starting aim, an animated upward drag cue and **Chip the rush**.
   The result offers Try again or Start showdown; Skip lesson is available.
 - **Rush result:** earned stars, rush-chip count and the next mastery/star target;
   Rematch, Practice chip and Cup. The new badge has its own equip toggle on the map.
@@ -72,3 +72,22 @@ Godot references used for this implementation:
 - [Theme resources](https://docs.godotengine.org/en/4.4/classes/class_theme.html)
 - [Display safe area](https://docs.godotengine.org/en/4.4/classes/class_displayserver.html#class-displayserver-method-get-display-safe-area)
 - [Viewport screen transform](https://docs.godotengine.org/en/4.4/classes/class_viewport.html#class-viewport-method-get-screen-transform)
+
+
+## Champion extension
+
+The cup sheet adds a Captain card with best/record and **Practice · Full preview**.
+After Cup completion, **Challenge The Captain** becomes the primary action;
+Beat the Rush remains available in its own card. Both cards scroll with the map.
+Champion gameplay retains the same objective layout, now with a four-goal target.
+The brief intro explains memory, blue rush arrows and the shortened trajectory.
+
+Aim uses a draggable white goal reticle; the lower pitch owns shot preparation.
+Champion hides the bend-adjusted endpoint. Practice and existing modes retain it.
+The help sheet explains the two regions and optional second-finger adjustment.
+
+During a highlight, objective/cue cards disappear and a small **HIGHLIGHT / Skip
+replay** bar sits inside the usual safe margins. Pause and sound stay accessible.
+Leaving playback restores the home camera and the already-scored result sheet.
+These layout changes require the runtime checks in PLAYTEST; no new screenshot
+or visual-validation claim accompanies this source handoff.

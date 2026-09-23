@@ -1,8 +1,8 @@
 # Local prototype playtest
 
 The owner reported passing headless checks for the earlier Rival Cup.
-The Beat the Rush update is source-reviewed only. Run headless import,
-`tests/cup_smoke.gd` and the newly prepared `tests/rush_smoke.gd` locally.
+The manual aim and Champion update is source-reviewed only. Run headless import,
+`tests/cup_smoke.gd`, `tests/rush_smoke.gd` and `tests/champion_smoke.gd` locally.
 The scripts cover progression, shared-path rush clearance and lifecycle cases. They cannot judge visuals, audio mix or whether a weakness is
 readable on a phone. Complete the checks below before deciding whether to
 expand this prototype or migrate the Flutter campaign.
@@ -39,14 +39,16 @@ are the hook check: “I spotted his weakness—and that winning goal was mine.�
 
 | Action | Expected observation |
 | --- | --- |
-| Quick press/release | One straight shot; no shot at touch-down |
+| Drag anywhere on the goal and release | Target follows your finger and stays; no shot consumed |
+| Quick press/release below the goal | One straight shot; no shot at touch-down |
 | Hold for at least ten seconds | Spinner completes ten revolutions and keeps moving |
 | Release in blue on revolution 1, 3 and 8 | Clean knuckle each time while holding still |
 | Release outside blue | Straight shot; feedback says early/late |
 | Drag left/right by a small amount | Small predictable bend to that side |
 | Drag farther sideways | Strong banana bend, potentially wide |
 | Drag back to centre after committing curve | Straight shot; never accidental knuckle |
-| Add another finger during a hold | It cannot take over or launch the held ball |
+| Add another finger on the goal during a hold | Aim changes while the shot finger keeps its bend/lift; aim release never fires |
+| Add a second finger below the goal during a hold | It cannot take over or launch the held ball |
 | Pause with another finger, then release the first | Hold cancels and consumes no ball |
 | Background the app while holding | Returns paused; stale release cannot shoot |
 | Pause while ball is flying | Ball and keeper freeze and continue on resume |
@@ -66,8 +68,9 @@ tablet-sized viewport. Also try a short desktop window to exercise menu scrollin
   outline. The caption counts down to **Set complete** after the fifth ball.
 - The objective, ball, timing ring and bottom cue do not overlap. Hold through
   several revolutions; watch the blue zone and check the bend meter at both ends.
-- The first ball says **Drag to bend**; later ready balls use only **Touch to lock**.
-  Restart brings the first-ball cue back. Holding shows **Release to shoot**.
+- Ready balls say **Drag the goal to aim**, with **Hold below · drag · release**
+  on ball one. Holding shows **Release to shoot**. The target must not overlap
+  the HUD or require touching underneath a button.
 - Each per-ball result shows one clear outcome, one technique line and **Next ball**.
   The fifth result shows stars, the next target and one primary action
   (Rematch, Next rival, or Equip Cup Ball). Pause, Help and Sound remain
@@ -159,7 +162,7 @@ visible contacts and performance are satisfactory on the chosen devices.
 
 1. With an existing completed cup, open **Beat the Rush**. Existing stars and
    Cup Ball equipment must remain. With a fresh cup, the showdown stays locked.
-2. Follow the animated upward cue. The free lesson targets the centre and has
+2. Follow the animated upward cue. The free lesson starts at the centre with an editable target and has
    unlimited retries. A successful chip must clear the moving keeper and score.
    Check **Skip lesson**, then re-enter: the full showdown briefing should appear.
 3. On balls 1/3/5, find the blue arrows and forward stance **before touching**.
@@ -194,3 +197,52 @@ Observe without coaching: **Can players spot the rush before release? Can they
 repeat an intentional chip? Do they choose a different shot when he stays back?
 Do they voluntarily retry for Sky Master or a better star score?** Record actual
 comments and results; balance and engagement are unmeasured for this update.
+
+
+## Captain and manual aim device pass
+
+1. In Cup, Rush, lesson, Champion and practice, drag the target into each corner.
+   It should remain fixed during a ten-second wait. The white ring is chosen aim;
+   the gold/red ring in easier modes is the predicted endpoint after bend.
+2. Aim with one finger, release, then hold below the goal and curve. Try changing
+   aim with a second finger during the hold. The original shot finger still owns
+   curve/chip and release. A shot drag crossing the goal must remain a shot drag.
+   Repeat with mouse; releasing the target must never shoot.
+3. Unlock the Captain using an existing Cup save. Check **Score 4 goals / 0 of 4**.
+   Three goals lose, four win, five are perfect; all five balls remain playable.
+   Pause/help/resume on final results must leave exactly one saved result.
+4. Repeatedly shoot right, including saves and misses. On following balls the
+   Captain should visibly move right before release. Change to the other side;
+   his memory should gradually follow the new pattern. Reopen the app after a
+   completed set and check the saved tendency and best/record survive.
+5. Across several rematches, expect exactly two rushes, separated by staying-back
+   balls. The sequence must change on rematch. Read the blue arrows and forward
+   stance before each shot; a long hold must never turn a parked cue into a rush.
+6. In Champion, only the beginning of the flight path is visible. The chosen
+   white target stays visible and gives no bend-adjusted endpoint. In practice,
+   the full path and endpoint return. Compare bend and lift judgment in both.
+7. Finish practice and leave a partial Champion set. Compare Cup/Rush/Champion
+   records before and after: practice writes none, and an unfinished showdown
+   counts no win or loss. Practice does not teach the saved Captain your habits.
+8. Inspect the Captain's face, kit, gold glove cores, stepping, rush stride,
+   anticipation, full extension and recovery. Feet should plant between steps.
+   Review saves close to fingers/boots from replay: trim cannot create invisible
+   save zones. Record any sliding, clipping or implausible landing.
+9. Score a top-corner, banana, knuckle or over-rush chip goal; score a clincher.
+   Watch the goal-side replay, then use Skip. Try Space/Escape, pause, background,
+   resize, Rematch and Cup during playback. Auto-finish and skip both restore the
+   result, home camera/FOV and correct next ball. Replays must never add a goal,
+   consume a ball or repeat a saved win.
+10. During replay, compare the shot and contact with the original. No new keeper
+    decision, unexplained save, ball teleport or path change should occur. Check
+    replay framing, net motion and crowd sound on tall and short viewports.
+    At most two highlights should interrupt a set; the chip lesson has none.
+11. Profile the Captain during idle, a long hold, full extension and replay on
+    physical hardware. Note added mesh cost and any first-replay hitch, then
+    compare repeat highlights and twenty rematches for memory growth.
+
+Ask without coaching: **Where is he expecting you to shoot? Why did that attempt
+fail? What would you change next time? Would you keep or skip that highlight?**
+Record first-attempt clears, goals per set, repeated shot choices, voluntary
+rematches and replay skips. These observations should determine the next tuning
+pass; the current difficulty and wow factor remain unmeasured.

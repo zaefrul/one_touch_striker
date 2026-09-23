@@ -20,6 +20,10 @@ signal lesson_requested
 signal skip_lesson_requested
 signal rush_start_requested
 signal badge_toggled
+signal champion_requested
+signal champion_start_requested
+signal practice_requested
+signal skip_replay_requested
 
 const Shot = preload("res://scripts/shot_math.gd")
 const UI = preload("res://scripts/ui_theme.gd")
@@ -63,6 +67,12 @@ var _objective_eyebrow: Label
 var _objective: Label
 var _lesson: bool = false
 var _chip_unlocked: bool = false
+var _required_goals: int = 3
+var _champion_button: Button
+var _practice_button: Button
+var _champion_detail: Label
+var _replay_panel: PanelContainer
+var _replay_title: Label
 var _guide: ArenaChipGuide
 var _badge: TextureRect
 var _chip_help: HBoxContainer
@@ -127,6 +137,7 @@ func _ready() -> void:
 	_build_objective()
 	_spacer(_hud_column, false)
 	_build_cue()
+	_build_replay_bar()
 	_build_sheet()
 	_build_taunt()
 	_guide = Guide.new()
@@ -273,7 +284,7 @@ func _build_cue() -> void:
 	_hud_column.add_child(_cue_panel)
 	var column: VBoxContainer = _column(_cue_panel, 4)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
-	_prompt = _label(column, "Touch to lock", 18)
+	_prompt = _label(column, "Drag the goal to aim", 18)
 	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_cue_row = _row(column)
 	_cue_row.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -342,6 +353,21 @@ func _build_sheet() -> void:
 	_sheet_body.resized.connect(_request_sheet_fit)
 	_sheet_body.minimum_size_changed.connect(_request_sheet_fit)
 	_shade.hide()
+
+func _build_replay_bar() -> void:
+	_replay_panel = PanelContainer.new()
+	_replay_panel.add_theme_stylebox_override("panel", UI.card(UI.SURFACE, 12))
+	_replay_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_hud_column.add_child(_replay_panel)
+	var row: HBoxContainer = _row(_replay_panel, 10)
+	var words: VBoxContainer = _column(row, 2)
+	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_label(words, "HIGHLIGHT", 12, UI.GOLD)
+	_replay_title = _label(words, "Goal!", 17, UI.TEXT, true)
+	var skip: Button = _button(row, "Skip replay")
+	skip.add_theme_font_size_override("font_size", 14)
+	skip.pressed.connect(func() -> void: skip_replay_requested.emit())
+	_replay_panel.hide()
 
 func _build_cup_block() -> void:
 	_cup_block = _column(_sheet_body, 10)
@@ -416,16 +442,30 @@ func _build_cup_block() -> void:
 	_badge_button.add_theme_constant_override("icon_max_width", 20)
 	_badge_button.clip_text = true
 	_badge_button.pressed.connect(func() -> void: badge_toggled.emit())
+	var champion_card: PanelContainer = PanelContainer.new()
+	champion_card.add_theme_stylebox_override("panel", UI.card(UI.RAISED, 12))
+	_cup_block.add_child(champion_card)
+	var champion_words: VBoxContainer = _column(champion_card, 8)
+	var champion_heading: HBoxContainer = _row(champion_words, 8)
+	_icon(champion_heading, ICON_TROPHY, UI.GOLD)
+	var champion_title: Label = _label(champion_heading, "THE CAPTAIN", 16, UI.GOLD, true)
+	champion_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_champion_detail = _label(champion_words, "4 goals from 5 · He learns your corners", 13, UI.MUTED, true)
+	_champion_button = _button(champion_words, "Challenge The Captain")
+	_champion_button.pressed.connect(func() -> void: champion_requested.emit())
+	_practice_button = _button(champion_words, "Practice · Full preview")
+	_practice_button.add_theme_font_size_override("font_size", 14)
+	_practice_button.pressed.connect(func() -> void: practice_requested.emit())
 	_cup_block.hide()
 
 func _build_help_rows() -> void:
 	_help_rows = _column(_sheet_body, 20)
-	_help_row(ICON_AIM, "Aim & shoot", "Touch to lock. Release to shoot.")
+	_help_row(ICON_AIM, "Aim & shoot", "Drag on the goal to aim. Hold below the goal, then release to shoot.")
 	_help_row(ICON_CURVE, "Curve & banana", "Drag sideways. More drag, more bend.")
 	_help_row(ICON_KNUCKLE, "Knuckle", "Hold still. Release in blue.")
 	_chip_help = _help_row(ICON_CHIP, "Chip", "Drag up to lift. Blue arrows signal a rush.")
 	_chip_help.hide()
-	_label(_help_rows, "The ring keeps looping while you hold.", 12, UI.MUTED, true)
+	_label(_help_rows, "The ring keeps looping while you hold. A second finger can adjust the target before release.", 12, UI.MUTED, true)
 
 func _help_row(texture: Texture2D, heading: String, detail: String) -> HBoxContainer:
 	var row: HBoxContainer = _row(_help_rows)
@@ -489,7 +529,7 @@ func in_play_area(point: Vector2) -> bool:
 
 func set_score(results: Array[String]) -> void:
 	outcomes = results.duplicate()
-	_goal_count.text = "↑" if _lesson else "%d / 3" % outcomes.count("GOAL")
+	_goal_count.text = "↑" if _lesson else "%d / %d" % [outcomes.count("GOAL"), _required_goals]
 	var left: int = maxi(0, 5 - outcomes.size())
 	_ball_count.text = "FREE PRACTICE" if _lesson else ("SET COMPLETE" if left == 0 else "%d %s" % [left, "BALL LEFT" if left == 1 else "BALLS LEFT"])
 	_track.set_outcomes(outcomes)
@@ -501,6 +541,11 @@ func set_lesson(enabled: bool) -> void:
 	_objective.text = "Chip the rush" if enabled else "Score 3 goals"
 	_track.visible = not enabled
 	_guide.hide()
+
+func set_goal_target(required: int) -> void:
+	_required_goals = required
+	if not _lesson:
+		_objective.text = "Score %d goals" % required
 
 func set_chip_unlocked(enabled: bool) -> void:
 	_chip_unlocked = enabled
@@ -521,6 +566,7 @@ func set_play_hud(visible_play: bool) -> void:
 	_objective_card.visible = visible_play
 	_cue_panel.visible = visible_play
 	_pause.visible = visible_play
+	_replay_panel.hide()
 
 func set_tension(level: int) -> void:
 	_track.set_pulse(0.0 if level <= 0 else (1.2 if level == 1 else 2.8))
@@ -538,8 +584,8 @@ func show_ready() -> void:
 	holding = false
 	_close_sheet()
 	_cue_panel.show()
-	_prompt.text = "Hold · drag up · release" if _lesson else "Touch to lock"
-	_hint.text = "Lift over the blue arrows" if _lesson else ("Sideways to bend · up to chip" if _chip_unlocked else "Drag to bend")
+	_prompt.text = "Hold · drag up · release" if _lesson else "Drag the goal to aim"
+	_hint.text = "Lift over the blue arrows" if _lesson else "Hold below · drag · release"
 	_hint.add_theme_color_override("font_color", UI.MUTED)
 	_knuckle_hint = false
 	_cue_row.visible = outcomes.is_empty()
@@ -644,7 +690,7 @@ func show_intro(profile: RivalProfile) -> void:
 	_quiet.text = "Cup"
 	queue_redraw()
 
-func show_cup(progress: CupProgress, rush: RushProgress) -> void:
+func show_cup(progress: CupProgress, rush: RushProgress, champion: ChampionProgress = null) -> void:
 	holding = false
 	_cue_panel.hide()
 	set_play_hud(false)
@@ -685,8 +731,14 @@ func show_cup(progress: CupProgress, rush: RushProgress) -> void:
 	if progress.cup_won() and not rush.badge_earned:
 		_rush_detail.text += "\nWin with a rush chip to earn Sky Master."
 	_badge_button.add_theme_font_size_override("font_size", 14)
-	_primary.text = "Beat the Rush" if progress.cup_won() else "Play next rival"
-	_primary_action = "rush" if progress.cup_won() else "play_next"
+	_champion_button.disabled = not progress.cup_won()
+	_champion_button.text = "Challenge The Captain" if progress.cup_won() else "Locked"
+	_practice_button.visible = progress.cup_won()
+	_champion_detail.text = "4 goals from 5 · He learns your corners" if progress.cup_won() else "Win the Rival Cup to unlock"
+	if progress.cup_won() and champion != null:
+		_champion_detail.text += "\nBest %d/5 · You %d · Captain %d" % [champion.best_goals, champion.wins, champion.losses]
+	_primary.text = "Challenge The Captain" if progress.cup_won() else "Play next rival"
+	_primary_action = "champion" if progress.cup_won() else "play_next"
 	_open_sheet("cup")
 	queue_redraw()
 
@@ -786,6 +838,66 @@ func show_menu(help_page: bool) -> void:
 	_open_sheet("help" if help_page else "pause")
 	queue_redraw()
 
+func show_champion_intro(progress: ChampionProgress) -> void:
+	holding = false
+	set_play_hud(false)
+	_arena_title.text = "The Captain"
+	_sheet_eyebrow.text = "CHAMPION SHOWDOWN"
+	_sheet_title.text = "Make him guess"
+	_sheet_title.add_theme_color_override("font_color", UI.GOLD)
+	_sheet_icon.texture = ICON_TROPHY
+	_sheet_icon.modulate = UI.GOLD
+	_sheet_detail.text = "Score 4 from 5"
+	_sheet_detail.show()
+	_sheet_note.text = "He remembers your corners. Blue arrows mean rush. Only the start of your shot is shown."
+	if progress.wins > 0:
+		_sheet_note.text += "\nBest %d/5 · You %d · Captain %d" % [progress.best_goals, progress.wins, progress.losses]
+	_sheet_note.show()
+	_primary.text = "Start showdown"
+	_primary_action = "champion_start"
+	_open_sheet("champion_intro")
+	_secondary.show()
+	_secondary.text = "Practice · Full preview"
+	_secondary_action = "practice"
+	_quiet.show()
+	queue_redraw()
+
+func show_champion_result(goals: int, progress: ChampionProgress, practice: bool) -> void:
+	holding = false
+	_cue_panel.hide()
+	_sheet_eyebrow.text = "PRACTICE COMPLETE" if practice else "CHAMPION SHOWDOWN"
+	_sheet_title.text = "Perfect showdown!" if goals == 5 else ("Captain beaten!" if goals >= 4 else "Read him again")
+	if practice:
+		_sheet_title.text = "Ready for the showdown?" if goals >= 4 else "Keep finding the gaps"
+	_sheet_title.add_theme_color_override("font_color", UI.GOLD if goals >= 4 else UI.TEXT)
+	_sheet_icon.texture = ICON_TROPHY if goals >= 4 else ICON_AIM
+	_sheet_icon.modulate = UI.GOLD
+	_sheet_detail.text = "%d goals from 5" % goals
+	_sheet_detail.show()
+	_sheet_note.text = "Practice complete · Rival records unchanged" if practice else progress.next_target(goals)
+	if not practice:
+		_sheet_note.text += "\nBest %d/5 · You %d · Captain %d" % [progress.best_goals, progress.wins, progress.losses]
+	_sheet_note.show()
+	_primary.text = "Challenge The Captain" if practice else "Rematch"
+	_primary_action = "champion" if practice else "champion_start"
+	_open_sheet("champion_result")
+	_secondary.show()
+	_secondary.text = "Practice again" if practice else "Practice · Full preview"
+	_secondary_action = "practice"
+	_quiet.show()
+	queue_redraw()
+
+func show_replay(title: String) -> void:
+	holding = false
+	_guide.hide()
+	_close_sheet()
+	set_play_hud(false)
+	_pause.show()
+	_replay_title.text = title
+	_replay_panel.show()
+	hide_taunt()
+	queue_redraw()
+
 func show_taunt(line: String, at: Vector2) -> void:
 	_taunt_label.text = line
 	_taunt.show()
@@ -805,6 +917,7 @@ func _process(_delta: float) -> void:
 
 func _open_sheet(mode: String) -> void:
 	_guide.hide()
+	_replay_panel.hide()
 	_sheet_mode = mode
 	_secondary_action = "restart"
 	_help_rows.visible = mode == "help"
@@ -815,13 +928,13 @@ func _open_sheet(mode: String) -> void:
 	if mode == "pause":
 		_secondary.text = "Restart lesson" if _lesson else "Restart set"
 	_quiet.visible = mode == "intro" or mode == "set_result" or mode == "pause"
-	var light: bool = mode in ["result", "set_result", "lesson_result", "rush_result"]
+	var light: bool = mode in ["result", "set_result", "lesson_result", "rush_result", "champion_result"]
 	_bottom_gap.visible = not light
 	_shade.color = Color(0.04, 0.07, 0.15, 0.16 if light else 0.80)
 	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE if light else Control.MOUSE_FILTER_STOP
 	_shade.show()
 	_sheet_scroll.scroll_vertical = 0
-	var intro: bool = mode in ["intro", "lesson_intro", "rush_intro"]
+	var intro: bool = mode in ["intro", "lesson_intro", "rush_intro", "champion_intro"]
 	_set_toolbar_enabled(light or mode == "cup" or intro)
 	if mode == "cup" or intro:
 		_pause.disabled = true
@@ -829,6 +942,7 @@ func _open_sheet(mode: String) -> void:
 	_primary.grab_focus()
 
 func _close_sheet() -> void:
+	_replay_panel.hide()
 	var focused: Control = get_viewport().gui_get_focus_owner()
 	if focused != null and _shade.is_ancestor_of(focused):
 		focused.release_focus()
@@ -846,6 +960,12 @@ func _primary_pressed() -> void:
 
 func _emit_action(action: String) -> void:
 	match action:
+		"champion":
+			champion_requested.emit()
+		"champion_start":
+			champion_start_requested.emit()
+		"practice":
+			practice_requested.emit()
 		"rush":
 			rush_requested.emit()
 		"rush_start":

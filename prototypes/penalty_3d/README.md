@@ -36,10 +36,11 @@ Headless checks (from the repository root):
 godot --headless --path prototypes/penalty_3d --import
 godot --headless --path prototypes/penalty_3d -s res://tests/cup_smoke.gd
 godot --headless --path prototypes/penalty_3d -s res://tests/rush_smoke.gd
+godot --headless --path prototypes/penalty_3d -s res://tests/champion_smoke.gd
 ```
 
 `--quit-after N` counts iterations, not seconds, and booting into the cup map
-does not exercise gameplay. Use the smoke scripts above. The Beat the Rush update was source-reviewed only;
+does not exercise gameplay. Use the smoke scripts above. The manual aim and Champion update was source-reviewed only;
 these commands are for the owner to run locally. No new APK was built for it.
 
 ## Play
@@ -50,7 +51,9 @@ Cleared rivals stay unlocked for rematch.
 
 | Input | Action |
 | --- | --- |
-| Touch/click the pitch | Lock the currently visible aim |
+| Drag on the goal | Choose the target; releasing this drag never shoots |
+| Touch/click below the goal | Prepare a shot toward your chosen target |
+| A second finger on the goal while holding | Adjust aim without changing bend/lift or releasing |
 | Release quickly | Straight shot |
 | Hold and drag sideways | Choose left/right curve; more drag adds banana bend |
 | Hold and drag up (after winning the cup) | Chip; upward distance controls lift |
@@ -65,6 +68,7 @@ Cleared rivals stay unlocked for rematch.
 | Speaker icon | Toggle sound; the choice is saved for this prototype |
 | R during a set | Rematch the current rival (abandons an unfinished set) |
 | Space on a result | Activate the primary action |
+| Skip replay / Space / Escape during a highlight | Return to the scored result |
 
 Stars: 3 goals → 1, 4 → 2, 5 → 3. The intro shows those thresholds under an
 empty star row. The set result shows earned stars and the next target
@@ -91,7 +95,8 @@ already in flight freezes during pause and resumes; cancellation consumes no bal
 
 Win the original three-rival cup to unlock **Beat the Rush** and manual chips.
 The first visit offers a free, animated chip lesson with **Skip lesson**.
-The lesson fixes the target centrally; the five-ball showdown restores moving aim.
+The lesson starts with a central target that you can move. All modes now use
+manual aiming; waiting never moves the target.
 **Practice chip** remains available from the showdown intro and results.
 
 The Gambler signals a rush with a forward stance and blue pitch chevrons on
@@ -108,6 +113,37 @@ Showdown records and the lesson flag live in `user://rush_showdown.cfg`.
 Cup stars, rivalry records and the Cup Ball stay in `user://rival_cup.cfg`.
 See [the behaviour and tuning notes](docs/BEAT_THE_RUSH.md).
 
+## Champion Showdown
+
+After winning the Cup, challenge **The Captain**: **4 goals from 5**, with all
+five balls played. A 5/5 win is a perfect showdown. He visibly guards your
+recent favourite side, reading the last five observed shot positions with extra
+weight on recent attempts. His two rushes are shuffled among five balls; the
+complete order changes on rematch. Blue arrows and a forward stance identify a
+rush before release. No arrows means he stays back.
+
+Champion shows the selected aim and only the initial arc. **Practice · Full
+preview** uses the same boss with a complete trajectory and endpoint marker.
+Practice has its own temporary memory and writes no results. The original Cup
+and Rush star thresholds stay at 3/4/5; Champion records are separate in
+`user://champion_showdown.cfg` (best goals, wins/losses, observed lanes).
+
+The Captain has a navy/gold kit, face, hair, number and crest, glove details,
+planted idle footsteps, a crouched anticipation pose, running strides, extended
+dives and a landing/recovery motion. The posed body/glove cores still drive
+contact; cosmetic trim adds no contact shapes.
+
+Exceptional or clinching goals can trigger a **skippable two-second goal-side
+highlight**. Ball position/rotation, keeper limb endpoints and net motion are
+recorded during the real shot. Playback samples that recording and does not run
+flight, keeper decisions, collision or scoring again. At most two highlights
+play per set (one exceptional goal plus the clincher). Practice also offers
+highlights; the repeating chip lesson does not.
+
+See [Champion behaviour and tuning](docs/CHAMPION_SHOWDOWN.md) and the owner-run
+cases in `tests/champion_smoke.gd`. These are prepared source, not passing test
+results. Camera framing, readable animation and difficulty need device review.
+
 ## Implemented scope
 
 - Genuine perspective 3D scene, fixed aiming camera, pitch, goal frame and net.
@@ -115,7 +151,9 @@ See [the behaviour and tuning notes](docs/BEAT_THE_RUSH.md).
   kit colours, stance, delayed committed dive, recovery and a save taunt.
   Capsule radii and contact maths are unchanged; every visible capsule is still
   the contact capsule.
+- Manual draggable target, with separate shot and aim touch ownership.
 - Straight, adjustable curve/banana, deterministic knuckle and manual chip paths.
+- A separate adaptive Captain showdown, full-preview practice and recorded highlights.
 - An unlockable Rush Showdown, skippable chip lesson, saved mastery badge and
   delayed keeper rushes using the same visible/contact geometry.
 - A shared path function for trajectory preview and ball flight.
@@ -183,8 +221,13 @@ Sources checked while preparing the prototype:
 
 | File | Responsibility |
 | --- | --- |
-| `scripts/main.gd` | Cup, lesson and showdown flow; shot lifecycle, input, pause |
-| `scripts/rival.gd` | Sweeper / Sentinel / Gambler profiles |
+| `scripts/main.gd` | Cup, lesson, Rush/Champion/practice/replay flow; input and pause |
+| `scripts/manual_aim.gd` | Goal-plane projection and target drag region |
+| `scripts/champion_brain.gd` | Observed shot memory, bounded guarding bias, rush schedule |
+| `scripts/champion_progress.gd` | Separate four-goal showdown records and saved lanes |
+| `scripts/shot_replay.gd` | Bounded actual-shot recording and playback interpolation |
+| `scripts/captain_art.gd` | Authored Captain character details tied to posed limbs |
+| `scripts/rival.gd` | Cup trio, Rush Gambler and Captain profiles |
 | `scripts/cup_progress.gd` | Original cup stars, unlocks, wins/losses, equipped ball |
 | `scripts/rush_progress.gd` | Separate showdown records, lesson flag, mastery badge |
 | `scripts/shot_gesture.gd` | Axis choice, drag distance, knuckle exclusion |
@@ -196,7 +239,7 @@ Sources checked while preparing the prototype:
 | `scripts/ui_theme.gd` | Floodlit Night palette and button/panel styles |
 | `scripts/star_row.gd`, `scripts/shot_track.gd`, `scripts/bend_meter.gd` | Stars, progress, bend cues |
 | `scripts/chip_guide.gd`, `scripts/touch_tap.gd` | Animated lesson cue and raw touch menu activation |
-| `tests/cup_smoke.gd`, `tests/rush_smoke.gd` | Local progression, physical flight and lifecycle regression cases |
+| `tests/cup_smoke.gd`, `tests/rush_smoke.gd`, `tests/champion_smoke.gd` | Owner-run progression, input, replay and lifecycle regression cases |
 | `ui/icons/` | Original matching SVG control and technique icons |
 | `shaders/ball.gdshader` | Classic / Cup Ball markings |
 
@@ -213,8 +256,9 @@ clamped into the goal. The knuckle sector is 0.55–0.73 seconds of every one-se
 hold cycle, matching `lib/game/knuckle_shot.dart`.
 
 Keeper reaction, reach, dive time and lift cap come from the rival profile.
-Prediction still reads observed ball position/velocity after release and does
-not read the player's locked target or spin. These are initial tuning values,
+Prediction reads observed ball position/velocity after release; the Captain also
+estimates acceleration from successive observations. It never reads the player's
+chosen aim, spin or loft and never retargets after committing. These are initial tuning values,
 not proven balance. A reduced Sweeper lift does not by itself make high shots
 safe: rotating the torso can still raise a glove into the path.
 
@@ -232,7 +276,7 @@ uses the confirmed scoring position captured at the goal-line crossing.
 ## Device export
 
 The owner has reported debug/release APKs from the earlier Rival Cup version.
-This Beat the Rush handoff updates source only; those existing APKs do not include
+This manual aim and Champion handoff updates source only; those existing APKs do not include
 these changes. Import and export the updated project locally to try it on a phone.
 
 Use Godot's export templates matching your installed editor. Configure the

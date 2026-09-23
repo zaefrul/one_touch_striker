@@ -7,6 +7,7 @@ const Gesture = preload("res://scripts/shot_gesture.gd")
 const Game = preload("res://scripts/main.gd")
 const CUP_PATH: String = "user://rush_smoke_cup.cfg"
 const RUSH_PATH: String = "user://rush_smoke_progress.cfg"
+const CHAMPION_PATH: String = "user://rush_smoke_champion_unused.cfg"
 const BAD_PATH: String = "user://rush_smoke_bad.cfg"
 var _failed: PackedStringArray = PackedStringArray()
 
@@ -14,12 +15,12 @@ func _init() -> void:
 	call_deferred("_run")
 
 func _run() -> void:
-	for path in [CUP_PATH, RUSH_PATH, BAD_PATH]:
+	for path in [CUP_PATH, RUSH_PATH, CHAMPION_PATH, BAD_PATH]:
 		_wipe(path)
 	_test_gestures()
 	_test_progress()
 	await _test_arena()
-	for path in [CUP_PATH, RUSH_PATH, BAD_PATH]:
+	for path in [CUP_PATH, RUSH_PATH, CHAMPION_PATH, BAD_PATH]:
 		_wipe(path)
 	if _failed.is_empty():
 		print("RUSH_SMOKE_OK")
@@ -100,6 +101,7 @@ func _test_arena() -> void:
 	var arena: Node = packed.instantiate()
 	arena.progress_path = CUP_PATH
 	arena.rush_progress_path = RUSH_PATH
+	arena.champion_progress_path = CHAMPION_PATH
 	root.add_child(arena)
 	await process_frame
 	await process_frame
