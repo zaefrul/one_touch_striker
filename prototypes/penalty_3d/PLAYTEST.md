@@ -1,7 +1,9 @@
 # Local prototype playtest
 
-Headless import and `tests/cup_smoke.gd` cover save/unlock/rematch rules and
-effect hooks. They cannot judge visuals, audio mix or whether a weakness is
+The owner reported passing headless checks for the earlier Rival Cup.
+The Beat the Rush update is source-reviewed only. Run headless import,
+`tests/cup_smoke.gd` and the newly prepared `tests/rush_smoke.gd` locally.
+The scripts cover progression, shared-path rush clearance and lifecycle cases. They cannot judge visuals, audio mix or whether a weakness is
 readable on a phone. Complete the checks below before deciding whether to
 expand this prototype or migrate the Flutter campaign.
 
@@ -72,7 +74,7 @@ tablet-sized viewport. Also try a short desktop window to exercise menu scrollin
   reachable from results; returning from Pause/Help restores the same result
   without consuming a ball.
 - Pause has **Resume**, **Restart set**, **Controls** and the current sound setting.
-  Help has three compact technique rows. Text wraps inside the card, and content
+  Help has three technique rows before the cup is won and adds the chip row after it. Text wraps inside the card, and content
   scrolls when necessary without moving the action buttons off-screen.
 - On phones with notches or gesture bars, check top/bottom safe margins in both
   orientations. On tablets, cards stay centred rather than spanning the pitch.
@@ -141,7 +143,8 @@ release-export measurements.
 Ask a few first-time players to try the 2D game and this prototype, alternating
 which one they play first. Observe without coaching:
 
-- Can they intentionally choose straight, curve and knuckle?
+- Can they intentionally choose straight, curve and knuckle? After unlocking chips,
+  can they lift over a rush and explain when they prefer an ordinary shot?
 - Can they explain a save or miss?
 - Do they voluntarily choose another set?
 - Can they name a rival weakness and say what they will try next?
@@ -150,3 +153,44 @@ which one they play first. Observe without coaching:
 Record player comments and voluntary retries; do not treat a handful of sessions
 as proven retention or revenue. Expand beyond one cup only after the controls,
 visible contacts and performance are satisfactory on the chosen devices.
+
+
+## Beat the Rush device pass
+
+1. With an existing completed cup, open **Beat the Rush**. Existing stars and
+   Cup Ball equipment must remain. With a fresh cup, the showdown stays locked.
+2. Follow the animated upward cue. The free lesson targets the centre and has
+   unlimited retries. A successful chip must clear the moving keeper and score.
+   Check **Skip lesson**, then re-enter: the full showdown briefing should appear.
+3. On balls 1/3/5, find the blue arrows and forward stance **before touching**.
+   Hold for ten seconds: arrows remain readable, the ring keeps looping and the
+   keeper does not rush until the shot is released. Balls 2/4 have no rush cue.
+4. Compare upward drags of roughly 40, 70 and 100 logical units. More drag gives
+   more lift and a longer flight. The dots and actual path should agree. Check
+   the shadow remains below the ball and the raised arc stays readable on a phone.
+5. Drag sideways, then upward; repeat upward, then sideways. The first chosen
+   technique stays selected. Returning to the origin removes bend/lift and must
+   never accidentally produce a knuckle. Ambiguous diagonal input stays neutral.
+6. Aim around the keeper, over him, into his torso and near his gloves. Only a
+   chip **over** a rushing keeper that then scores gets **CHIPPED HIM!** credit.
+   A save/post/wide after passing him cannot earn a mastery chip.
+7. Finish with three goals but no rush chip: one star, badge still locked.
+   Win with a rush chip: Sky Master unlocks and equips. Toggle it, reopen the app,
+   and check the best stars, record and equipment survive. Losing keeps the best.
+8. Earn the third goal before ball five. Finish all five; there must be exactly
+   one saved result. Pause/help/resume on the final sheet cannot count it twice.
+   Cup or Rematch during an unfinished set must record nothing.
+9. Replay the chip lesson after earning the badge. It must not add wins, losses,
+   stars or mastery progress. Pause/cancel/background a held chip and release;
+   returning must leave a fresh ready ball with no stale shot.
+10. With raw phone touch, use Start, Skip, Rematch, Cup, Help, mute and the badge
+    toggle. Try a second finger on Pause while holding a shot. Swipe the cup map
+    starting on a card or button: scrolling must not select it on release.
+11. At 320 x 640, 400 x 800 and a notched phone size, check that the rush card
+    scrolls, its stars fit, the badge does not crowd the shot markers and the
+    lesson arrow does not cover the ball. Action buttons must stay reachable.
+
+Observe without coaching: **Can players spot the rush before release? Can they
+repeat an intentional chip? Do they choose a different shot when he stays back?
+Do they voluntarily retry for Sky Master or a better star score?** Record actual
+comments and results; balance and engagement are unmeasured for this update.

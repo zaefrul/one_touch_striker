@@ -17,7 +17,7 @@ func set_stars(value: int, thresholds: bool = false) -> void:
 	queue_redraw()
 
 func _draw() -> void:
-	var gap: float = 44.0
+	var gap: float = minf(44.0, maxf(0.0, (size.x - 24.0) * 0.5))
 	var origin: float = size.x * 0.5 - gap
 	var cy: float = 16.0 if show_thresholds else size.y * 0.5
 	for i in range(3):

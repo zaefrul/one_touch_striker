@@ -4,8 +4,10 @@ A standalone Godot prototype for evaluating the same one-touch football loop in
 3D. It is based on the Flutter game's Rival Cup keepers. The Godot project is
 entirely inside this folder.
 
-Headless import and a progression/effects smoke script have been run locally.
-Visual quality, audio mix and keeper difficulty still need a phone playtest.
+The owner reported passing headless checks for the earlier three-rival cup.
+The new **Beat the Rush** update is source-reviewed only; its regression scripts
+are prepared for local execution. Visual quality, audio mix and keeper difficulty
+still need a phone playtest.
 60 FPS is a playtest target, not a measured result.
 
 ## Open it locally
@@ -33,10 +35,12 @@ Headless checks (from the repository root):
 ```bash
 godot --headless --path prototypes/penalty_3d --import
 godot --headless --path prototypes/penalty_3d -s res://tests/cup_smoke.gd
+godot --headless --path prototypes/penalty_3d -s res://tests/rush_smoke.gd
 ```
 
 `--quit-after N` counts iterations, not seconds, and booting into the cup map
-does not exercise gameplay. Use the smoke script above.
+does not exercise gameplay. Use the smoke scripts above. The Beat the Rush update was source-reviewed only;
+these commands are for the owner to run locally. No new APK was built for it.
 
 ## Play
 
@@ -49,7 +53,8 @@ Cleared rivals stay unlocked for rematch.
 | Touch/click the pitch | Lock the currently visible aim |
 | Release quickly | Straight shot |
 | Hold and drag sideways | Choose left/right curve; more drag adds banana bend |
-| Drag back to the touch origin | Return to a straight shot; that hold remains in curve mode |
+| Hold and drag up (after winning the cup) | Chip; upward distance controls lift |
+| Drag back to the touch origin | Remove bend/lift; that hold cannot become a knuckle |
 | Hold still and release in the blue timing sector | Knuckle shot |
 | Keep holding through several revolutions | Ring keeps rotating; every revolution has a fresh timing window |
 | Release early or late | Ordinary straight shot with timing feedback |
@@ -71,14 +76,37 @@ locked. The first cup win offers **Equip Cup Ball**; later the reward card
 toggles Classic / Cup.
 
 The timing ring is the knuckle technique clock inherited from the Flutter game.
-Shot speed is fixed in this prototype. The ring never fires or locks a shot by
+Ordinary shots retain fixed speed; chips take longer as lift increases. The ring never fires or locks a shot by
 itself. Small movements up to 14 logical pixels stay straight. Dragging beyond
-that threshold commits the hold to curve controls, preventing accidental
-knuckles after dragging back to the centre.
+that threshold commits the hold to its first clear axis: sideways for curve,
+upward for chip once unlocked. An ambiguous diagonal waits for a clearer axis
+and suppresses knuckle timing. Returning to the centre does not restore knuckle
+eligibility during that hold.
 
 Releasing over the toolbar/outside the pitch cancels a held shot. Pause,
 backgrounding, a cancelled touch and window resize also cancel a hold. A shot
 already in flight freezes during pause and resumes; cancellation consumes no ball.
+
+## Beat the Rush
+
+Win the original three-rival cup to unlock **Beat the Rush** and manual chips.
+The first visit offers a free, animated chip lesson with **Skip lesson**.
+The lesson fixes the target centrally; the five-ball showdown restores moving aim.
+**Practice chip** remains available from the showdown intro and results.
+
+The Gambler signals a rush with a forward stance and blue pitch chevrons on
+balls 1, 3 and 5. He stays back on balls 2 and 4. Read the cue before releasing:
+upward dragging makes a slower chip, while sideways dragging keeps the curve.
+All five balls finish; 3/4/5 goals earn 1/2/3 best stars.
+
+Win a completed showdown with at least one goal that physically passes above a
+rushing keeper to earn **Sky Master**. The cosmetic badge appears beside the
+shot markers and can be toggled on the map. A normal win still earns stars;
+a chip around the keeper or a chip during the free lesson cannot earn the badge.
+
+Showdown records and the lesson flag live in `user://rush_showdown.cfg`.
+Cup stars, rivalry records and the Cup Ball stay in `user://rival_cup.cfg`.
+See [the behaviour and tuning notes](docs/BEAT_THE_RUSH.md).
 
 ## Implemented scope
 
@@ -87,7 +115,9 @@ already in flight freezes during pause and resumes; cancellation consumes no bal
   kit colours, stance, delayed committed dive, recovery and a save taunt.
   Capsule radii and contact maths are unchanged; every visible capsule is still
   the contact capsule.
-- Straight, adjustable curve/banana and deterministic knuckle paths.
+- Straight, adjustable curve/banana, deterministic knuckle and manual chip paths.
+- An unlockable Rush Showdown, skippable chip lesson, saved mastery badge and
+  delayed keeper rushes using the same visible/contact geometry.
 - A shared path function for trajectory preview and ball flight.
 - 3D swept ball contact against the posts and the keeper's visible body shapes.
 - Whole-ball goal-line crossing and separate goal, save, post, wide and over results.
@@ -103,8 +133,7 @@ already in flight freezes during pause and resumes; cancellation consumes no bal
 - Reused meshes/materials, an instanced crowd and physics interpolation.
 - A shared UI theme, matching vector icons, responsive cards and safe-area margins.
 
-Player-controlled chips against rushing keepers, the Flutter twelve-stage map
-and Flutter save migration are out of scope. The prototype has no backend,
+The Flutter twelve-stage map and Flutter save migration remain out of scope. The prototype has no backend,
 telemetry, advertising or purchases.
 
 ## UI layout
@@ -154,17 +183,20 @@ Sources checked while preparing the prototype:
 
 | File | Responsibility |
 | --- | --- |
-| `scripts/main.gd` | Cup screens, shot lifecycle, input, pause |
+| `scripts/main.gd` | Cup, lesson and showdown flow; shot lifecycle, input, pause |
 | `scripts/rival.gd` | Sweeper / Sentinel / Gambler profiles |
-| `scripts/cup_progress.gd` | Stars, unlocks, wins/losses, equipped ball |
+| `scripts/cup_progress.gd` | Original cup stars, unlocks, wins/losses, equipped ball |
+| `scripts/rush_progress.gd` | Separate showdown records, lesson flag, mastery badge |
+| `scripts/shot_gesture.gd` | Axis choice, drag distance, knuckle exclusion |
 | `scripts/keeper.gd` | Profile-driven pose and matching visible/contact shapes |
 | `scripts/goal_fx.gd` | Signature classification, crowd, particles, camera, tension |
-| `scripts/shot_math.gd` | Flight, curve/knuckle timing, swept capsule/frame contact |
+| `scripts/shot_math.gd` | Shared flight/chip arc, timing, swept capsule/frame contact |
 | `scripts/arena_art.gd` | Arena meshes, camera, crowd, ball materials, rival banner |
 | `scripts/hud.gd` | Cup map, intro, results, safe areas, timing ring |
 | `scripts/ui_theme.gd` | Floodlit Night palette and button/panel styles |
 | `scripts/star_row.gd`, `scripts/shot_track.gd`, `scripts/bend_meter.gd` | Stars, progress, bend cues |
-| `tests/cup_smoke.gd` | Headless progression and effect hooks |
+| `scripts/chip_guide.gd`, `scripts/touch_tap.gd` | Animated lesson cue and raw touch menu activation |
+| `tests/cup_smoke.gd`, `tests/rush_smoke.gd` | Local progression, physical flight and lifecycle regression cases |
 | `ui/icons/` | Original matching SVG control and technique icons |
 | `shaders/ball.gdshader` | Classic / Cup Ball markings |
 
@@ -174,7 +206,8 @@ before a goal is awarded. Flight is an authored arcade trajectory, not a
 simulation of aerodynamic forces.
 
 The goal is 7.32 units wide and 2.44 high, with 0.06-radius frame members.
-Ball radius is 0.14. Flight to the goal centre plane takes 0.70 seconds.
+Ball radius is 0.14. Ordinary flight to the goal centre plane takes 0.70 seconds;
+maximum chip lift takes 1.20 seconds.
 Maximum sidespin shifts the goal-line destination by 2.65 units; it is never
 clamped into the goal. The knuckle sector is 0.55–0.73 seconds of every one-second
 hold cycle, matching `lib/game/knuckle_shot.dart`.
@@ -198,7 +231,9 @@ uses the confirmed scoring position captured at the goal-line crossing.
 
 ## Device export
 
-The first handoff is source for local editor play, not an APK or iOS build.
+The owner has reported debug/release APKs from the earlier Rival Cup version.
+This Beat the Rush handoff updates source only; those existing APKs do not include
+these changes. Import and export the updated project locally to try it on a phone.
 
 Use Godot's export templates matching your installed editor. Configure the
 Android/iOS export preset locally, using a **separate prototype application ID**

@@ -85,33 +85,38 @@ func _player(stream: AudioStream, volume: float) -> AudioStreamPlayer:
 	add_child(player)
 	return player
 
-func classify(score_pos: Vector3, spin: float, knuckle: bool) -> Dictionary:
+func classify(score_pos: Vector3, spin: float, knuckle: bool, loft: float = 0.0, cleared_rush: bool = false) -> Dictionary:
 	var placement: String = "centre"
 	if absf(score_pos.x) > Shot.HALF_GOAL - 1.1 and score_pos.y > 1.5:
 		placement = "corner"
 	var technique: String = "straight"
-	if knuckle:
+	if loft > 0.0:
+		technique = "chip"
+	elif knuckle:
 		technique = "knuckle"
 	elif absf(spin) >= 0.75:
 		technique = "banana"
+	elif absf(spin) > 0.001:
+		technique = "curve"
 	var title: String = "Goal!"
-	if placement == "corner":
+	if technique == "chip" and cleared_rush:
+		title = "CHIPPED HIM!"
+	elif placement == "corner":
 		title = "TOP BINS!"
 	elif technique == "banana":
 		title = "BENT IT IN!"
 	elif technique == "knuckle":
 		title = "PURE KNUCKLE!"
+	elif technique == "chip":
+		title = "FLOATED IN!"
 	var bits: PackedStringArray = PackedStringArray()
 	if placement == "corner":
 		bits.append("Top corner")
 	else:
 		bits.append("Centre")
-	if technique == "banana":
-		bits.append("Banana")
-	elif technique == "knuckle":
-		bits.append("Knuckle")
-	else:
-		bits.append("Straight")
+	bits.append(technique.capitalize())
+	if technique == "chip" and cleared_rush:
+		bits.append("Beat the rush")
 	var detail: String = " · ".join(bits)
 	last_placement = placement
 	last_technique = technique
@@ -124,8 +129,8 @@ func classify(score_pos: Vector3, spin: float, knuckle: bool) -> Dictionary:
 		"detail": detail,
 	}
 
-func start_goal(score_pos: Vector3, spin: float, knuckle: bool) -> Dictionary:
-	var signature: Dictionary = classify(score_pos, spin, knuckle)
+func start_goal(score_pos: Vector3, spin: float, knuckle: bool, loft: float = 0.0, cleared_rush: bool = false) -> Dictionary:
+	var signature: Dictionary = classify(score_pos, spin, knuckle, loft, cleared_rush)
 	_score_pos = score_pos
 	_age = 0.0
 	celebrating = true
@@ -133,7 +138,7 @@ func start_goal(score_pos: Vector3, spin: float, knuckle: bool) -> Dictionary:
 	_burst(signature)
 	_cheer.pitch_scale = 1.12 if signature["technique"] == "banana" else 1.0
 	_cheer.play()
-	if signature["placement"] == "corner" or signature["technique"] == "knuckle":
+	if signature["placement"] == "corner" or signature["technique"] == "knuckle" or cleared_rush:
 		_fire.play()
 	return signature
 
@@ -219,7 +224,7 @@ func _burst(signature: Dictionary) -> void:
 	var color: Color = UI.TEXT
 	if signature["placement"] == "corner":
 		color = UI.GOLD
-	elif signature["technique"] == "knuckle":
+	elif signature["technique"] == "knuckle" or signature["technique"] == "chip":
 		color = UI.BLUE
 	elif signature["technique"] == "banana":
 		color = Color("#ffd166")

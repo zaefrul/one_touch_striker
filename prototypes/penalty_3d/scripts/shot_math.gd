@@ -12,6 +12,12 @@ const MAX_BEND: float = 2.65
 const SWEET_START: float = 0.55
 const SWEET_END: float = 0.73
 const FULL_CROSSING: float = 1.0 + BALL_RADIUS / START.z
+const CHIP_LIFT: float = 8.0
+const CHIP_DURATION: float = 1.20
+const MASTERY_LOFT: float = 0.20
+
+static func duration_for(loft: float = 0.0) -> float:
+	return lerpf(DURATION, CHIP_DURATION, clampf(loft, 0.0, 1.0))
 
 static func ring_phase(seconds: float) -> float:
 	return fposmod(seconds, 1.0)
@@ -29,8 +35,12 @@ static func aim_at(seconds: float) -> Vector2:
 	# Both coordinates are visible in the moving goal target before touch-down.
 	return Vector2(sin(seconds * 1.16) * 3.25, 1.15 + sin(seconds * 0.81) * 0.70)
 
-static func position_at(aim: Vector2, spin: float, knuckle: bool, progress: float) -> Vector3:
+static func position_at(aim: Vector2, spin: float, knuckle: bool, progress: float, loft: float = 0.0) -> Vector3:
 	var p: float = maxf(0.0, progress)
+	var chip: float = clampf(loft, 0.0, 1.0)
+	if chip > 0.0:
+		spin = 0.0
+		knuckle = false
 	var wobble_x: float = 0.0
 	var wobble_y: float = 0.0
 	if knuckle and p > 0.45 and p < 1.0:
@@ -40,11 +50,13 @@ static func position_at(aim: Vector2, spin: float, knuckle: bool, progress: floa
 		wobble_y = 0.10 * sin(2.0 * TAU * u) * envelope
 	return Vector3(
 		aim.x * p + MAX_BEND * spin * p * p + wobble_x,
-		BALL_RADIUS + (aim.y - BALL_RADIUS) * p + 3.2 * p * (1.0 - p) + wobble_y,
+		BALL_RADIUS + (aim.y - BALL_RADIUS) * p + (3.2 + CHIP_LIFT * chip) * p * (1.0 - p) + wobble_y,
 		START.z * (1.0 - p)
 	)
 
-static func label_for(spin: float, knuckle: bool) -> String:
+static func label_for(spin: float, knuckle: bool, loft: float = 0.0) -> String:
+	if loft > 0.0:
+		return "CHIP"
 	if knuckle:
 		return "KNUCKLE"
 	if absf(spin) < 0.001:

@@ -172,7 +172,21 @@ static func build(root: Node3D) -> Dictionary:
 		"dots": dots,
 		"banner": title,
 		"ball_material": ball_material,
+		"rush_cue": _build_rush_cue(root),
 	}
+
+static func _build_rush_cue(root: Node3D) -> Node3D:
+	var cue: Node3D = Node3D.new()
+	root.add_child(cue)
+	var blue: StandardMaterial3D = material(Color("#5fd4ff"), true)
+	for z in [0.7, 1.25]:
+		beam(cue, Vector3(-0.28, 0, z), Vector3(0, 0, z + 0.28), 0.025, blue)
+		beam(cue, Vector3(0.28, 0, z), Vector3(0, 0, z + 0.28), 0.025, blue)
+	for child in cue.get_children():
+		if child is MeshInstance3D:
+			child.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	cue.hide()
+	return cue
 
 static func _build_crowd(root: Node3D) -> void:
 	var mesh: SphereMesh = SphereMesh.new()

@@ -22,6 +22,26 @@ var _commit_age: float = 0.0
 var _recovery: float = 0.0
 var _saved: bool = false
 var _taunt_sent: bool = false
+var _rush_ball: bool = false
+var _root_z: float = 0.48
+var _forward_pitch: float = 0.0
+
+func rush_armed() -> bool:
+	return _rush_ball
+
+func rush_origin() -> Vector3:
+	return Vector3(_root_x, 0.025, _root_z)
+
+func prepare_shot(clock: float, will_rush: bool) -> void:
+	reset_pose(clock)
+	_rush_ball = will_rush
+	_forward_pitch = 0.20 if will_rush else 0.0
+	_write_pose(clock)
+	for part in capsules:
+		part["old_a"] = part["a"]
+		part["old_b"] = part["b"]
+	sync_meshes()
+	reset_physics_interpolation()
 
 func _ready() -> void:
 	_kit = _material(Color("#5fd4ff"))
@@ -113,6 +133,9 @@ func _lift_max() -> float:
 
 func reset_pose(clock: float) -> void:
 	committed = false
+	_rush_ball = false
+	_root_z = 0.48
+	_forward_pitch = 0.0
 	_lean = 0.0
 	_lift = 0.0
 	_extension = 0.0
@@ -139,7 +162,8 @@ func advance(clock: float, flight_age: float, ball: Vector3, velocity: Vector3) 
 		if flight_age >= _reaction() and velocity.z < -0.01:
 			# Read only the ball's observed position and velocity after the delay.
 			# Never inspect the player's hidden final target, spin or technique.
-			var remaining: float = maxf(0.0, ball.z / -velocity.z)
+			var intercept_z: float = 0.48 + _profile.rush_distance if _rush_ball else 0.0
+			var remaining: float = maxf(0.0, (ball.z - intercept_z) / -velocity.z)
 			var predicted_x: float = ball.x + velocity.x * remaining
 			var predicted_y: float = ball.y + velocity.y * remaining - 6.53 * remaining * remaining
 			_from_x = _root_x
@@ -150,18 +174,27 @@ func advance(clock: float, flight_age: float, ball: Vector3, velocity: Vector3) 
 					_direction = 1.0 if _idle_vx > 0.0 else -1.0
 			else:
 				_direction = -1.0 if predicted_x < _root_x else 1.0
-			_target_x = clampf(predicted_x - _direction * 0.48, _from_x - _reach(), _from_x + _reach())
+			var body_offset: float = 0.0 if _rush_ball else _direction * 0.48
+			_target_x = clampf(predicted_x - body_offset, _from_x - _reach(), _from_x + _reach())
 			_target_x = clampf(_target_x, -3.05, 3.05)
 			_target_lift = clampf(predicted_y - 1.20, -0.35, _lift_max())
 			_commit_age = flight_age
 			committed = true
 	if committed:
-		var p: float = clampf((flight_age - _commit_age) / _dive_time(), 0.0, 1.0)
+		var move_time: float = _profile.rush_time if _rush_ball else _dive_time()
+		var p: float = clampf((flight_age - _commit_age) / move_time, 0.0, 1.0)
 		var ease: float = p * p * (3.0 - 2.0 * p)
 		_root_x = lerpf(_from_x, _target_x, ease)
-		_lean = -_direction * 0.95 * ease
-		_lift = _target_lift * sin(p * PI * 0.5)
-		_extension = ease
+		if _rush_ball:
+			_root_z = 0.48 + _profile.rush_distance * ease
+			_forward_pitch = lerpf(0.20, 0.34, ease)
+			_lean = -_direction * 0.12 * ease
+			_lift = 0.0
+			_extension = ease * 0.30
+		else:
+			_lean = -_direction * 0.95 * ease
+			_lift = _target_lift * sin(p * PI * 0.5)
+			_extension = ease
 	_write_pose(clock)
 
 func finish(saved: bool) -> void:
@@ -175,6 +208,8 @@ func recover(delta: float, clock: float) -> void:
 	_lean = lerpf(_lean, 0.0, amount)
 	_lift = lerpf(_lift, 0.0, amount)
 	_extension = lerpf(_extension, 0.0, amount)
+	_forward_pitch = lerpf(_forward_pitch, 0.0, amount)
+	_root_z = lerpf(_root_z, 0.48, amount)
 	if _saved and not _taunt_sent and _recovery > 0.30:
 		_taunt_sent = true
 		if _profile != null and not _profile.taunts.is_empty():
@@ -184,8 +219,9 @@ func recover(delta: float, clock: float) -> void:
 
 func _point(local_point: Vector3) -> Vector3:
 	var pivot: Vector3 = Vector3(0.0, 0.9, 0.0)
-	var p: Vector3 = (local_point - pivot).rotated(Vector3.BACK, _lean) + pivot
-	p += Vector3(_root_x, _lift, 0.48)
+	var p: Vector3 = (local_point - pivot).rotated(Vector3.RIGHT, _forward_pitch)
+	p = p.rotated(Vector3.BACK, _lean) + pivot
+	p += Vector3(_root_x, _lift, _root_z)
 	p.y = maxf(0.11, p.y)
 	return p
 
@@ -258,3 +294,31 @@ func contact_fraction(a: Vector3, b: Vector3) -> float:
 		)
 		first = minf(first, hit)
 	return first
+
+func clears_rush(a: Vector3, b: Vector3) -> bool:
+	# A mastery chip must pass ABOVE the visible keeper, within his width.
+	# Merely shooting around him, or chipping against a parked keeper, does not count.
+	if not _rush_ball or not committed or capsules.is_empty():
+		return false
+	var torso: Dictionary = capsules[0]
+	var old_mid: Vector3 = (torso["old_a"] + torso["old_b"]) * 0.5
+	var new_mid: Vector3 = (torso["a"] + torso["b"]) * 0.5
+	var before: float = a.z + Shot.BALL_RADIUS - old_mid.z
+	var after: float = b.z + Shot.BALL_RADIUS - new_mid.z
+	if before <= 0.0 or after > 0.0:
+		return false
+	var fraction: float = clampf(before / (before - after), 0.0, 1.0)
+	var crossing: Vector3 = a.lerp(b, fraction)
+	var top: float = -INF
+	var left: float = INF
+	var right: float = -INF
+	for part in capsules:
+		var radius: float = part["radius"]
+		var old_a: Vector3 = part["old_a"]
+		var old_b: Vector3 = part["old_b"]
+		var points: Array[Vector3] = [old_a.lerp(part["a"], fraction), old_b.lerp(part["b"], fraction)]
+		for point in points:
+			top = maxf(top, point.y + radius)
+			left = minf(left, point.x - radius)
+			right = maxf(right, point.x + radius)
+	return crossing.y - Shot.BALL_RADIUS > top + 0.02 and crossing.x >= left and crossing.x <= right

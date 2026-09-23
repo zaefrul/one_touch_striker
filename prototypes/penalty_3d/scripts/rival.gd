@@ -17,6 +17,8 @@ var bounce: float
 var taunts: Array[String] = []
 var intro_cue: String
 var rush_every: int = 0
+var rush_distance: float = 3.0
+var rush_time: float = 0.44
 var commit_to_lean: bool = false
 
 static var _roster: Array[RivalProfile] = []
@@ -48,7 +50,7 @@ func offset(angle: float) -> float:
 			if cycle < 0.625:
 				return -1.0
 			return -1.0 + 2.0 * _ease((cycle - 0.625) / 0.375)
-		"gambler":
+		"gambler", "rush_gambler":
 			var visit: float = (1.0 - cos(angle)) * 0.5
 			return 1.0 - 2.0 * visit * visit * visit
 		_:
@@ -111,3 +113,23 @@ static func _gambler() -> RivalProfile:
 	profile.rush_every = 0
 	profile.commit_to_lean = true
 	return profile
+
+
+static func rush_showdown() -> RivalProfile:
+	# A separate profile: never mutate the shared three-rival roster or its saves.
+	var profile: RivalProfile = _gambler()
+	profile.id = "rush_gambler"
+	profile.title = "The Gambler"
+	profile.weakness = "Blue arrows: he will rush. Lift it over him."
+	profile.intro_cue = "BEAT THE RUSH"
+	profile.reaction = 0.22
+	profile.reach = 1.55
+	profile.dive_time = 0.38
+	profile.commit_to_lean = false
+	profile.rush_every = 2
+	profile.taunts = ["Read the run.", "Too low.", "Watch my feet."]
+	return profile
+
+
+func rushes_on(ball_index: int) -> bool:
+	return rush_every > 0 and ball_index >= 0 and ball_index % rush_every == 0

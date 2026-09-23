@@ -22,12 +22,13 @@ the existing 3D scene and camera are retained.
 `ui_theme.gd` owns shared styling. The HUD uses MarginContainer, HBoxContainer,
 VBoxContainer and PanelContainer nodes instead of individual fixed coordinates.
 The shot track and bend meter draw within their own control bounds. Only the
-timing ring follows the ball's projected position.
+timing ring and the chip lesson cue follow the ball's projected position.
 
 ## Screen hierarchy
 
 - **Cup map:** three rival cards (kit, stars, You W · Keeper L, lock) plus the
-  Cup Ball reward card and one primary **Play next rival**.
+  Cup Ball reward card, the locked/unlocked Rush Showdown card and one primary
+  **Play next rival** (changes to **Beat the Rush** after cup completion).
 - **Rival intro:** name, Score 3 goals, one weakness line, a three-star row
   labelled 3 · 4 · 5, **Start**, and a quiet Cup link.
 - **Ready:** rival name and toolbar; objective and remaining balls; open pitch;
@@ -41,17 +42,25 @@ timing ring follows the ball's projected position.
   Next rival, or Equip Cup Ball). Rematch is a quiet link after a clear. Cup is
   always a quiet link.
 - **Pause:** a centred sheet with round status, controls/audio, Resume and Restart.
-- **Help:** a centred sheet with three illustrated technique rows and Back to play.
+- **Help:** three illustrated technique rows; a fourth chip row appears after
+  cup completion. **Back to play** stays outside the scroll area.
+- **Chip lesson:** one central aim, an animated upward drag cue and **Chip the rush**.
+  The result offers Try again or Start showdown; Skip lesson is available.
+- **Rush result:** earned stars, rush-chip count and the next mastery/star target;
+  Rematch, Practice chip and Cup. The new badge has its own equip toggle on the map.
 
 Pause/help shades block pitch interaction and disable the underlying toolbar.
 Results keep Pause, Help and Sound reachable, while shot input stays blocked by
 the result state and HUD input guard. Both ready and in-flight resume paths close
 the sheet. Button focus styles support keyboard review without stealing shots
-from touch.
+from touch. Raw phone touches activate on release through `touch_tap.gd`;
+canceled touches, scrolling and large drags cannot activate a button. Mouse
+emulation stays disabled. Small star rows scale spacing to their available width.
 
 ## Review status
 
-Source review and visual inspection of the static SVG only. No Godot import,
+The original static SVG predates the Rush Showdown card and lesson. This update
+was source-reviewed only; its live layout still needs a phone check. No Godot import,
 parser, analyzer, test, app run, build/export or workflow was performed. The SVG
 uses approximate text metrics and must not be used to claim actual device fit.
 Use [PLAYTEST.md](../PLAYTEST.md) for safe areas, wrapping, scrolling, keyboard

@@ -15,12 +15,21 @@ signal play_next_requested
 signal equip_requested
 signal rival_chosen(index: int)
 signal reward_toggled
+signal rush_requested
+signal lesson_requested
+signal skip_lesson_requested
+signal rush_start_requested
+signal badge_toggled
 
 const Shot = preload("res://scripts/shot_math.gd")
 const UI = preload("res://scripts/ui_theme.gd")
 const Track = preload("res://scripts/shot_track.gd")
 const Meter = preload("res://scripts/bend_meter.gd")
 const Stars = preload("res://scripts/star_row.gd")
+const Guide = preload("res://scripts/chip_guide.gd")
+const TouchTap = preload("res://scripts/touch_tap.gd")
+const ICON_CHIP = preload("res://ui/icons/chip.svg")
+const ICON_SKY = preload("res://ui/icons/sky_master.svg")
 const ICON_PAUSE = preload("res://ui/icons/pause.svg")
 const ICON_HELP = preload("res://ui/icons/help.svg")
 const ICON_SOUND = preload("res://ui/icons/sound_on.svg")
@@ -51,6 +60,17 @@ var _wordmark: Label
 var _arena_title: Label
 var _objective_card: PanelContainer
 var _objective_eyebrow: Label
+var _objective: Label
+var _lesson: bool = false
+var _chip_unlocked: bool = false
+var _guide: ArenaChipGuide
+var _badge: TextureRect
+var _chip_help: HBoxContainer
+var _rush_button: Button
+var _rush_detail: Label
+var _rush_stars: ArenaStarRow
+var _badge_button: Button
+var _secondary_action: String = "restart"
 var _goal_count: Label
 var _ball_count: Label
 var _track: ArenaShotTrack
@@ -109,6 +129,9 @@ func _ready() -> void:
 	_build_cue()
 	_build_sheet()
 	_build_taunt()
+	_guide = Guide.new()
+	add_child(_guide)
+	_guide.hide()
 	resized.connect(_layout)
 	_layout()
 	set_score([])
@@ -172,6 +195,11 @@ func _button(parent: Node, text_value: String, variant: String = "ArenaQuiet") -
 	button.mouse_filter = Control.MOUSE_FILTER_STOP
 	button.focus_mode = Control.FOCUS_ALL
 	parent.add_child(button)
+	TouchTap.bind(button, func() -> void:
+		if button.toggle_mode:
+			button.button_pressed = not button.button_pressed
+		button.pressed.emit()
+	)
 	return button
 
 func _icon_button(parent: Node, texture: Texture2D, description: String) -> Button:
@@ -221,11 +249,15 @@ func _build_objective() -> void:
 	var column: VBoxContainer = _column(_objective_card)
 	_objective_eyebrow = _label(column, "THE SWEEPER", 12, UI.GOLD)
 	var heading: HBoxContainer = _row(column)
-	var objective: Label = _label(heading, "Score 3 goals", 22, UI.TEXT, true)
-	objective.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	objective.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_objective = _label(heading, "Score 3 goals", 22, UI.TEXT, true)
+	_objective.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_objective.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_goal_count = _label(heading, "0 / 3", 24, UI.GOLD)
 	var progress: HBoxContainer = _row(column)
+	_badge = _icon(progress, ICON_SKY, UI.BLUE)
+	_badge.custom_minimum_size = Vector2(20, 20)
+	_badge.tooltip_text = "Sky Master"
+	_badge.hide()
 	_track = Track.new()
 	progress.add_child(_track)
 	_ball_count = _label(progress, "5 BALLS", 12, UI.MUTED)
@@ -321,11 +353,12 @@ func _build_cup_block() -> void:
 		var swatch: ColorRect = ColorRect.new()
 		swatch.custom_minimum_size = Vector2(28, 28)
 		swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		swatch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(swatch)
 		var words: VBoxContainer = _column(row, 2)
 		words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var name_label: Label = _label(words, "", 17)
-		var record: Label = _label(words, "", 12, UI.MUTED)
+		var name_label: Label = _label(words, "", 17, UI.TEXT, true)
+		var record: Label = _label(words, "", 12, UI.MUTED, true)
 		var side: VBoxContainer = _column(row, 4)
 		side.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		var star_row: ArenaStarRow = Stars.new()
@@ -339,6 +372,7 @@ func _build_cup_block() -> void:
 			if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 				rival_chosen.emit(index)
 		)
+		TouchTap.bind(card, func() -> void: rival_chosen.emit(index))
 		_rival_rows.append({
 			"card": card,
 			"swatch": swatch,
@@ -361,6 +395,27 @@ func _build_cup_block() -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			reward_toggled.emit()
 	)
+	TouchTap.bind(_reward_card, func() -> void: reward_toggled.emit())
+	var rush_card: PanelContainer = PanelContainer.new()
+	rush_card.mouse_filter = Control.MOUSE_FILTER_PASS
+	rush_card.add_theme_stylebox_override("panel", UI.card(UI.RAISED, 12))
+	_cup_block.add_child(rush_card)
+	var rush_words: VBoxContainer = _column(rush_card, 8)
+	var heading: HBoxContainer = _row(rush_words, 8)
+	_icon(heading, ICON_CHIP, UI.BLUE)
+	var title: Label = _label(heading, "BEAT THE RUSH", 14, UI.BLUE, true)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_rush_stars = Stars.new()
+	_rush_stars.custom_minimum_size = Vector2(90, 28)
+	heading.add_child(_rush_stars)
+	_rush_detail = _label(rush_words, "Win the Rival Cup to unlock", 13, UI.MUTED, true)
+	_rush_button = _button(rush_words, "Play showdown")
+	_rush_button.pressed.connect(func() -> void: rush_requested.emit())
+	_badge_button = _button(rush_words, "Sky Master")
+	_badge_button.icon = ICON_SKY
+	_badge_button.add_theme_constant_override("icon_max_width", 20)
+	_badge_button.clip_text = true
+	_badge_button.pressed.connect(func() -> void: badge_toggled.emit())
 	_cup_block.hide()
 
 func _build_help_rows() -> void:
@@ -368,15 +423,18 @@ func _build_help_rows() -> void:
 	_help_row(ICON_AIM, "Aim & shoot", "Touch to lock. Release to shoot.")
 	_help_row(ICON_CURVE, "Curve & banana", "Drag sideways. More drag, more bend.")
 	_help_row(ICON_KNUCKLE, "Knuckle", "Hold still. Release in blue.")
+	_chip_help = _help_row(ICON_CHIP, "Chip", "Drag up to lift. Blue arrows signal a rush.")
+	_chip_help.hide()
 	_label(_help_rows, "The ring keeps looping while you hold.", 12, UI.MUTED, true)
 
-func _help_row(texture: Texture2D, heading: String, detail: String) -> void:
+func _help_row(texture: Texture2D, heading: String, detail: String) -> HBoxContainer:
 	var row: HBoxContainer = _row(_help_rows)
 	_icon(row, texture)
 	var words: VBoxContainer = _column(row, 4)
 	words.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_label(words, heading, 17, UI.TEXT, true)
 	_label(words, detail, 14, UI.MUTED, true)
+	return row
 
 func _build_taunt() -> void:
 	_taunt = PanelContainer.new()
@@ -431,12 +489,29 @@ func in_play_area(point: Vector2) -> bool:
 
 func set_score(results: Array[String]) -> void:
 	outcomes = results.duplicate()
-	_goal_count.text = "%d / 3" % outcomes.count("GOAL")
+	_goal_count.text = "↑" if _lesson else "%d / 3" % outcomes.count("GOAL")
 	var left: int = maxi(0, 5 - outcomes.size())
-	_ball_count.text = "SET COMPLETE" if left == 0 else "%d %s" % [left, "BALL LEFT" if left == 1 else "BALLS LEFT"]
+	_ball_count.text = "FREE PRACTICE" if _lesson else ("SET COMPLETE" if left == 0 else "%d %s" % [left, "BALL LEFT" if left == 1 else "BALLS LEFT"])
 	_track.set_outcomes(outcomes)
 	if _cue_panel.visible and not holding:
 		_cue_row.visible = outcomes.is_empty()
+
+func set_lesson(enabled: bool) -> void:
+	_lesson = enabled
+	_objective.text = "Chip the rush" if enabled else "Score 3 goals"
+	_track.visible = not enabled
+	_guide.hide()
+
+func set_chip_unlocked(enabled: bool) -> void:
+	_chip_unlocked = enabled
+	_chip_help.visible = enabled
+
+func set_badge(equipped: bool) -> void:
+	_badge.visible = equipped
+
+func update_guide(at: Vector2, needs_drag: bool) -> void:
+	_guide.visible = _lesson and needs_drag and not _shade.visible and _cue_panel.visible
+	_guide.position = at + Vector2(44, -110)
 
 func set_rival(title: String) -> void:
 	_arena_title.text = title
@@ -463,15 +538,15 @@ func show_ready() -> void:
 	holding = false
 	_close_sheet()
 	_cue_panel.show()
-	_prompt.text = "Touch to lock"
-	_hint.text = "Drag to bend"
+	_prompt.text = "Hold · drag up · release" if _lesson else "Touch to lock"
+	_hint.text = "Lift over the blue arrows" if _lesson else ("Sideways to bend · up to chip" if _chip_unlocked else "Drag to bend")
 	_hint.add_theme_color_override("font_color", UI.MUTED)
 	_knuckle_hint = false
 	_cue_row.visible = outcomes.is_empty()
 	_meter.hide()
 	queue_redraw()
 
-func show_hold(phase: float, amount: float, committed: bool, clean: bool, at: Vector2) -> void:
+func show_hold(phase: float, amount: float, committed: bool, clean: bool, at: Vector2, loft: float = 0.0, chip_mode: bool = false) -> void:
 	if not holding:
 		_cue_panel.show()
 		_cue_row.show()
@@ -481,14 +556,15 @@ func show_hold(phase: float, amount: float, committed: bool, clean: bool, at: Ve
 	ring_phase = phase
 	curve_committed = committed
 	ball_screen = at
-	_hint.text = "Knuckle ready" if clean else Shot.label_for(amount, false).capitalize()
+	_hint.text = "Knuckle ready" if clean else Shot.label_for(amount, false, loft).capitalize()
 	if clean != _knuckle_hint:
 		_knuckle_hint = clean
 		_hint.add_theme_color_override("font_color", UI.BLUE if clean else UI.MUTED)
-	_meter.set_bend(amount, clean)
+	_meter.set_bend(loft if chip_mode else amount, clean, chip_mode)
 	queue_redraw()
 
 func show_flight() -> void:
+	_guide.hide()
 	holding = false
 	_close_sheet()
 	_cue_panel.hide()
@@ -540,6 +616,7 @@ func show_set_result(goals: int, stars: int, next_line: String, won: bool, first
 	_open_sheet("set_result")
 	_secondary.visible = won
 	_secondary.text = "Rematch"
+	_secondary_action = "rematch"
 	_quiet.visible = true
 	_quiet.text = "Cup"
 	queue_redraw()
@@ -567,7 +644,7 @@ func show_intro(profile: RivalProfile) -> void:
 	_quiet.text = "Cup"
 	queue_redraw()
 
-func show_cup(progress: CupProgress) -> void:
+func show_cup(progress: CupProgress, rush: RushProgress) -> void:
 	holding = false
 	_cue_panel.hide()
 	set_play_hud(false)
@@ -577,7 +654,7 @@ func show_cup(progress: CupProgress) -> void:
 	_sheet_title.add_theme_color_override("font_color", UI.TEXT)
 	_sheet_icon.texture = ICON_TROPHY
 	_sheet_icon.modulate = UI.GOLD
-	_sheet_detail.text = "Score 3 goals. Stars stay. Rematch anyone you have cleared."
+	_sheet_detail.text = "Score 3 goals. Earn stars. Beat every keeper."
 	_sheet_detail.show()
 	_sheet_note.hide()
 	_stars.hide()
@@ -598,9 +675,92 @@ func show_cup(progress: CupProgress) -> void:
 	else:
 		_reward_detail.text = "Win all three rivals"
 		_reward_lock.text = "🔒"
-	_primary.text = "Play next rival"
-	_primary_action = "play_next"
+	_rush_button.disabled = not progress.cup_won()
+	_rush_button.text = "Play showdown" if progress.cup_won() else "Locked"
+	_rush_stars.set_stars(rush.best_stars())
+	_rush_detail.text = "You %d · Keeper %d" % [rush.wins, rush.losses] if progress.cup_won() else "Win the Rival Cup to unlock"
+	_badge_button.visible = progress.cup_won()
+	_badge_button.disabled = not rush.badge_earned
+	_badge_button.text = ("Sky Master · Equipped" if rush.badge_equipped else "Equip Sky Master") if rush.badge_earned else "Sky Master · Locked"
+	if progress.cup_won() and not rush.badge_earned:
+		_rush_detail.text += "\nWin with a rush chip to earn Sky Master."
+	_badge_button.add_theme_font_size_override("font_size", 14)
+	_primary.text = "Beat the Rush" if progress.cup_won() else "Play next rival"
+	_primary_action = "rush" if progress.cup_won() else "play_next"
 	_open_sheet("cup")
+	queue_redraw()
+
+func show_rush_intro(lesson: bool, rush: RushProgress) -> void:
+	holding = false
+	set_play_hud(false)
+	_arena_title.text = "Beat the Rush"
+	_sheet_eyebrow.text = "NEW TECHNIQUE" if lesson else "FIVE-BALL SHOWDOWN"
+	_sheet_title.text = "Lift it over him" if lesson else "Beat the Rush"
+	_sheet_title.add_theme_color_override("font_color", UI.BLUE)
+	_sheet_icon.texture = ICON_CHIP
+	_sheet_icon.modulate = UI.BLUE
+	_sheet_detail.text = "Hold · drag up · release" if lesson else "Score 3 goals"
+	_sheet_detail.show()
+	_sheet_note.text = "Blue arrows mean he will rush. Try one free shot." if lesson else "Read his stance. Chip the rush; pick your shot when he stays back."
+	_sheet_note.show()
+	_primary.text = "Try a chip" if lesson else "Start showdown"
+	_primary_action = "lesson" if lesson else "rush_start"
+	_open_sheet("lesson_intro" if lesson else "rush_intro")
+	_stars.visible = not lesson
+	_stars.set_stars(rush.best_stars(), true)
+	_secondary.show()
+	_secondary.text = "Skip lesson" if lesson else "Practice chip"
+	_secondary_action = "skip_lesson" if lesson else "lesson"
+	_quiet.show()
+	queue_redraw()
+
+func show_lesson_result(success: bool, outcome: String, loft: float, cleared: bool) -> void:
+	holding = false
+	_cue_panel.hide()
+	_sheet_eyebrow.text = "CHIP LESSON"
+	_sheet_title.text = "Chipped him!" if success else RESULT_TITLES.get(outcome, "Try again")
+	_sheet_title.add_theme_color_override("font_color", UI.BLUE)
+	_sheet_icon.texture = ICON_CHIP
+	_sheet_icon.modulate = UI.BLUE
+	_sheet_detail.text = "Now read him across five balls." if success else "Drag up a little farther, then release."
+	if not success and loft < Shot.MASTERY_LOFT:
+		_sheet_detail.text = "Hold, drag up, then release to lift."
+	elif not success and outcome == "GOAL" and not cleared:
+		_sheet_detail.text = "Score over the keeper to finish the lesson."
+	elif not success and (outcome == "POST" or outcome == "OVER" or outcome == "WIDE"):
+		_sheet_detail.text = "Keep the drag upward. Watch the landing marker."
+	_sheet_detail.show()
+	_sheet_note.hide()
+	_primary.text = "Start showdown" if success else "Try again"
+	_primary_action = "rush_start" if success else "lesson"
+	_open_sheet("lesson_result")
+	_secondary.visible = not success
+	_secondary.text = "Skip lesson"
+	_secondary_action = "skip_lesson"
+	_quiet.show()
+	queue_redraw()
+
+func show_rush_result(goals: int, chips: int, target: String, first_badge: bool) -> void:
+	holding = false
+	_cue_panel.hide()
+	_sheet_eyebrow.text = "SKY MASTER UNLOCKED" if first_badge else "SHOWDOWN COMPLETE"
+	_sheet_title.text = "Chipped the champion" if first_badge else ("Keeper beaten" if goals >= 3 else "Read him again")
+	_sheet_title.add_theme_color_override("font_color", UI.BLUE if first_badge else UI.GOLD)
+	_sheet_icon.texture = ICON_SKY if first_badge else ICON_CHIP
+	_sheet_icon.modulate = UI.BLUE
+	_sheet_detail.text = "%d/5 goals · %d rush %s" % [goals, chips, "chip" if chips == 1 else "chips"]
+	_sheet_detail.show()
+	_sheet_note.text = "Sky Master equipped. " + target if first_badge else target
+	_sheet_note.show()
+	_primary.text = "Rematch"
+	_primary_action = "rush_start"
+	_open_sheet("rush_result")
+	_stars.show()
+	_stars.set_stars(CupProgress.stars_for_goals(goals), false)
+	_secondary.show()
+	_secondary.text = "Practice chip"
+	_secondary_action = "lesson"
+	_quiet.show()
 	queue_redraw()
 
 func show_menu(help_page: bool) -> void:
@@ -616,6 +776,8 @@ func show_menu(help_page: bool) -> void:
 	var goals: int = outcomes.count("GOAL")
 	var left: int = maxi(0, 5 - outcomes.size())
 	_sheet_detail.text = "%d %s · %d %s left" % [goals, "goal" if goals == 1 else "goals", left, "ball" if left == 1 else "balls"]
+	if _lesson:
+		_sheet_detail.text = "Free chip practice"
 	_sheet_detail.visible = not help_page
 	_sheet_note.hide()
 	_stars.hide()
@@ -642,23 +804,26 @@ func _process(_delta: float) -> void:
 		hide_taunt()
 
 func _open_sheet(mode: String) -> void:
+	_guide.hide()
 	_sheet_mode = mode
+	_secondary_action = "restart"
 	_help_rows.visible = mode == "help"
 	_pause_tools.visible = mode == "pause"
 	_cup_block.visible = mode == "cup"
 	_stars.visible = mode == "intro" or mode == "set_result"
 	_secondary.visible = mode == "pause"
 	if mode == "pause":
-		_secondary.text = "Restart set"
-	_quiet.visible = mode == "intro" or mode == "set_result"
-	_bottom_gap.visible = mode != "result" and mode != "set_result"
-	var light: bool = mode == "result" or mode == "set_result"
+		_secondary.text = "Restart lesson" if _lesson else "Restart set"
+	_quiet.visible = mode == "intro" or mode == "set_result" or mode == "pause"
+	var light: bool = mode in ["result", "set_result", "lesson_result", "rush_result"]
+	_bottom_gap.visible = not light
 	_shade.color = Color(0.04, 0.07, 0.15, 0.16 if light else 0.80)
 	_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE if light else Control.MOUSE_FILTER_STOP
 	_shade.show()
 	_sheet_scroll.scroll_vertical = 0
-	_set_toolbar_enabled(light or mode == "cup" or mode == "intro")
-	if mode == "cup" or mode == "intro":
+	var intro: bool = mode in ["intro", "lesson_intro", "rush_intro"]
+	_set_toolbar_enabled(light or mode == "cup" or intro)
+	if mode == "cup" or intro:
 		_pause.disabled = true
 	_request_sheet_fit()
 	_primary.grab_focus()
@@ -677,7 +842,20 @@ func _set_toolbar_enabled(enabled: bool) -> void:
 	_sound.disabled = not enabled
 
 func _primary_pressed() -> void:
-	match _primary_action:
+	_emit_action(_primary_action)
+
+func _emit_action(action: String) -> void:
+	match action:
+		"rush":
+			rush_requested.emit()
+		"rush_start":
+			rush_start_requested.emit()
+		"lesson":
+			lesson_requested.emit()
+		"skip_lesson":
+			skip_lesson_requested.emit()
+		"restart":
+			restart_requested.emit()
 		"next":
 			next_requested.emit()
 		"start":
@@ -696,10 +874,7 @@ func _primary_pressed() -> void:
 			resume_requested.emit()
 
 func _secondary_pressed() -> void:
-	if _sheet_mode == "set_result":
-		rematch_requested.emit()
-	else:
-		restart_requested.emit()
+	_emit_action(_secondary_action)
 
 func _draw() -> void:
 	if not holding:
